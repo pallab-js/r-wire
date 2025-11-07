@@ -1,0 +1,37 @@
+[package]
+name = "auracap"
+version = "0.1.0"
+description = "AuraCap Network Analyzer"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+# Define custom-protocol as an empty feature to satisfy Tauri CLI
+# This feature is not actually used, but Tauri CLI may try to enable it
+custom-protocol = []
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "auracap_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.5", features = ["dialog-save", "shell-open"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Core Networking
+pcap = "1.1.0"
+pnet = "0.34.0"
+
+# Concurrency
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+
