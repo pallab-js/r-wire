@@ -126,35 +126,12 @@ r-wire/
 - **Logging**: env_logger
 - **Testing**: Built-in Rust test framework
 
-## Recent Improvements
-
-### ✅ Code Quality & Testing
-- **Comprehensive Test Suite**: Added unit tests for packet parsing, filtering, and protocol dissection
-- **Type Checking**: Strict TypeScript configuration with full type safety
-- **Rust Linting**: Clean code with no clippy warnings
-- **Error Handling**: Robust error handling throughout the application
-
-### ✅ Documentation
-- **API Documentation**: Complete Rust API documentation with examples
-- **Code Comments**: Detailed inline documentation for complex logic
-
-### ✅ Development Experience
-- **Logging Framework**: Structured logging with env_logger for debugging
-- **Development Scripts**: Enhanced npm scripts for testing and development
-
-### ✅ Bug Fixes
-- **Timestamp Correction**: Fixed microsecond to nanosecond conversion in packet capture
-- **Race Condition Fix**: Resolved async operation timing issues in capture restart
-- **Memory Management**: Proper cleanup and resource management
-
 ## Testing
 
 Run the test suites:
 
 ```bash
 # Run Rust tests
-npm run test:rust
-# or directly:
 cd src-tauri && cargo test
 
 # Run TypeScript type checking
