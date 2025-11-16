@@ -57,17 +57,16 @@
     }
   }
 
-  async function restartCapture() {
+   async function restartCapture() {
     // Clear packet list and selected packet
     setPacketList([]);
     selectedPacket.set(null);
-    
-    // Stop and start
+
+    // Stop and start - await both operations properly
     await stopCapture();
-    // Small delay to ensure stop completes
-    setTimeout(() => {
-      startCapture();
-    }, 100);
+    // Small delay to ensure stop completes and resources are freed
+    await new Promise(resolve => setTimeout(resolve, 100));
+    await startCapture();
   }
 
   function clearPackets() {

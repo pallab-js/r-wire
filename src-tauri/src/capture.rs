@@ -12,13 +12,17 @@ pub async fn run_capture(
     mut stop_rx: tokio_mpsc::Receiver<()>,
     packet_cache: Arc<Mutex<BTreeMap<u64, CachedPacket>>>,
 ) -> Result<(), String> {
+    log::info!("Starting packet capture on interface: {}", interface_name);
+
     // Open the capture device
     let cap = pcap::Capture::from_device(interface_name.as_str())
         .map_err(|e| {
             let err_str = e.to_string();
             if err_str.contains("Permission denied") || err_str.contains("permission") {
+                log::error!("Permission denied when opening device: {}", interface_name);
                 "PermissionError".to_string()
             } else {
+                log::error!("Failed to open device {}: {}", interface_name, e);
                 format!("Failed to open device: {}", e)
             }
         })?
@@ -29,11 +33,15 @@ pub async fn run_capture(
         .map_err(|e| {
             let err_str = e.to_string();
             if err_str.contains("Permission denied") || err_str.contains("permission") {
+                log::error!("Permission denied when activating capture on: {}", interface_name);
                 "PermissionError".to_string()
             } else {
+                log::error!("Failed to activate capture on {}: {}", interface_name, e);
                 format!("Failed to activate capture: {}", e)
             }
         })?;
+
+    log::info!("Successfully opened capture device: {}", interface_name);
 
     // Create a channel for packets from the blocking thread (use std::sync::mpsc)
     // Send (packet_id, packet_data, timestamp_ns)
@@ -51,8 +59,8 @@ pub async fn run_capture(
                     let data = packet.data.to_vec();
                     // Extract timestamp from packet header
                     // pcap header has tv_sec (seconds) and tv_usec (microseconds)
-                    let timestamp_ns = (packet.header.ts.tv_sec as i64) * 1_000_000_000 
-                        + (packet.header.ts.tv_usec as i64) * 1_000;
+                    let timestamp_ns = packet.header.ts.tv_sec * 1_000_000_000
+                        + (packet.header.ts.tv_usec as i64) * 1_000_000;
                     // Send packet with timestamp (blocking, but that's ok in this thread)
                     if packet_tx.send((id_counter, data, timestamp_ns)).is_err() {
                         // Receiver dropped, stop capturing

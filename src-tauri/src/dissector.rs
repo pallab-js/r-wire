@@ -20,7 +20,7 @@ const PROTO_UNKNOWN: &str = "Unknown";
 // Lightweight parser for the packet list view
 pub fn parse_summary(raw_data: &[u8], id: u64, timestamp_ns: i64) -> Option<PacketSummary> {
     let ethernet = EthernetPacket::new(raw_data)?;
-    
+
     let (source_addr, dest_addr, protocol, info) = match ethernet.get_ethertype() {
         EtherTypes::Ipv4 => {
             let ipv4 = Ipv4Packet::new(ethernet.payload())?;
@@ -76,12 +76,9 @@ pub fn parse_summary(raw_data: &[u8], id: u64, timestamp_ns: i64) -> Option<Pack
         }
     };
 
-    // Use the actual packet timestamp from pcap
-    let timestamp = timestamp_ns;
-
     Some(PacketSummary {
         id,
-        timestamp,
+        timestamp: timestamp_ns,
         source_addr,
         dest_addr,
         protocol,
@@ -93,7 +90,7 @@ pub fn parse_summary(raw_data: &[u8], id: u64, timestamp_ns: i64) -> Option<Pack
 // Full packet dissection for detail view
 pub fn dissect_packet(raw_data: &[u8], id: u64) -> Option<PacketDetail> {
     let mut layers = Vec::new();
-    
+
     // Parse Ethernet layer (L2)
     let ethernet = EthernetPacket::new(raw_data)?;
     let ethernet_layer = ProtocolLayer {
@@ -144,7 +141,7 @@ pub fn dissect_packet(raw_data: &[u8], id: u64) -> Option<PacketDetail> {
                         };
                         layers.push(tcp_layer);
 
-                        // Application layer parsing (F6)
+                        // Application layer parsing
                         let payload = tcp.payload();
                         if !payload.is_empty() {
                             parse_application_layer(&mut layers, tcp.get_source(), tcp.get_destination(), payload, true);
@@ -164,7 +161,7 @@ pub fn dissect_packet(raw_data: &[u8], id: u64) -> Option<PacketDetail> {
                         };
                         layers.push(udp_layer);
 
-                        // Application layer parsing (F6)
+                        // Application layer parsing
                         let payload = udp.payload();
                         if !payload.is_empty() {
                             parse_application_layer(&mut layers, udp.get_source(), udp.get_destination(), payload, false);
@@ -258,13 +255,8 @@ pub fn dissect_packet(raw_data: &[u8], id: u64) -> Option<PacketDetail> {
         _ => {}
     }
 
-    // Get summary - use current time as fallback since we don't have timestamp here
-    // This is only used for detail view, so approximate timestamp is acceptable
-    let timestamp_ns = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos() as i64;
-    let summary = parse_summary(raw_data, id, timestamp_ns)?;
+    // Get summary
+    let summary = parse_summary(raw_data, id, 0)?;
 
     Some(PacketDetail {
         summary,
@@ -273,7 +265,7 @@ pub fn dissect_packet(raw_data: &[u8], id: u64) -> Option<PacketDetail> {
     })
 }
 
-// Application layer parsing (F6)
+// Application layer parsing
 fn parse_application_layer(
     layers: &mut Vec<ProtocolLayer>,
     src_port: u16,
@@ -285,7 +277,7 @@ fn parse_application_layer(
     if payload.is_empty() {
         return;
     }
-    
+
     // DNS (port 53)
     if src_port == 53 || dst_port == 53 {
         let dns_layer = ProtocolLayer {
@@ -340,4 +332,171 @@ fn parse_application_layer(
         ],
     };
     layers.push(app_layer);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_summary_ipv4_tcp() {
+        // Create a mock IPv4 TCP packet
+        let mut data = Vec::new();
+
+        // Ethernet header (14 bytes)
+        data.extend_from_slice(&[0x00, 0x11, 0x22, 0x33, 0x44, 0x55]); // dst mac
+        data.extend_from_slice(&[0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB]); // src mac
+        data.extend_from_slice(&[0x08, 0x00]); // ethertype IPv4
+
+        // IPv4 header (20 bytes)
+        data.extend_from_slice(&[0x45, 0x00, 0x00, 0x3C]); // version, ihl, tos, total len
+        data.extend_from_slice(&[0x00, 0x01, 0x00, 0x00]); // id, flags, frag offset
+        data.extend_from_slice(&[0x40, 0x06, 0x00, 0x00]); // ttl, protocol (TCP), checksum
+        data.extend_from_slice(&[0xC0, 0xA8, 0x01, 0x01]); // src ip: 192.168.1.1
+        data.extend_from_slice(&[0xC0, 0xA8, 0x01, 0x02]); // dst ip: 192.168.1.2
+
+        // TCP header (20 bytes)
+        data.extend_from_slice(&[0xD4, 0x31, 0x00, 0x50]); // src port 54321, dst port 80
+        data.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // seq number
+        data.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // ack number
+        data.extend_from_slice(&[0x50, 0x02, 0x20, 0x00]); // data offset, flags, window
+        data.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // checksum, urgent pointer
+
+        let result = parse_summary(&data, 1, 1_000_000_000);
+        assert!(result.is_some());
+
+        let summary = result.unwrap();
+        assert_eq!(summary.id, 1);
+        assert_eq!(summary.timestamp, 1_000_000_000);
+        assert_eq!(summary.source_addr, "192.168.1.1");
+        assert_eq!(summary.dest_addr, "192.168.1.2");
+        assert_eq!(summary.protocol, "TCP");
+        assert_eq!(summary.length, data.len() as u32);
+        assert!(summary.info.contains("192.168.1.1"));
+        assert!(summary.info.contains("192.168.1.2"));
+    }
+
+    #[test]
+    fn test_parse_summary_ipv4_udp() {
+        // Create a mock IPv4 UDP packet
+        let mut data = Vec::new();
+
+        // Ethernet header
+        data.extend_from_slice(&[0x00, 0x11, 0x22, 0x33, 0x44, 0x55]);
+        data.extend_from_slice(&[0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB]);
+        data.extend_from_slice(&[0x08, 0x00]);
+
+        // IPv4 header
+        data.extend_from_slice(&[0x45, 0x00, 0x00, 0x20]); // total len = 32
+        data.extend_from_slice(&[0x00, 0x01, 0x00, 0x00]);
+        data.extend_from_slice(&[0x40, 0x11, 0x00, 0x00]); // protocol UDP (17)
+        data.extend_from_slice(&[0xC0, 0xA8, 0x01, 0x01]);
+        data.extend_from_slice(&[0xC0, 0xA8, 0x01, 0x02]);
+
+        // UDP header (8 bytes)
+        data.extend_from_slice(&[0xC3, 0x50, 0x00, 0x35]); // src port 50000, dst port 53 (DNS)
+        data.extend_from_slice(&[0x00, 0x0C, 0x00, 0x00]); // length 12, checksum 0
+
+        let result = parse_summary(&data, 2, 2_000_000_000);
+        assert!(result.is_some());
+
+        let summary = result.unwrap();
+        assert_eq!(summary.protocol, "UDP");
+        assert!(summary.info.contains("192.168.1.1"));
+        assert!(summary.info.contains("192.168.1.2"));
+    }
+
+    #[test]
+    fn test_parse_summary_arp() {
+        // Create a mock ARP packet
+        let mut data = Vec::new();
+
+        // Ethernet header
+        data.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]); // broadcast dst
+        data.extend_from_slice(&[0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB]); // src mac
+        data.extend_from_slice(&[0x08, 0x06]); // ethertype ARP
+
+        // ARP header (28 bytes minimum)
+        data.extend_from_slice(&[0x00, 0x01, 0x08, 0x00]); // htype, ptype
+        data.extend_from_slice(&[0x06, 0x04, 0x00, 0x01]); // hlen, plen, oper (request)
+        data.extend_from_slice(&[0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB]); // sender mac
+        data.extend_from_slice(&[0xC0, 0xA8, 0x01, 0x01]); // sender ip
+        data.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00]); // target mac
+        data.extend_from_slice(&[0xC0, 0xA8, 0x01, 0x02]); // target ip
+
+        let result = parse_summary(&data, 3, 3_000_000_000);
+        assert!(result.is_some());
+
+        let summary = result.unwrap();
+        assert_eq!(summary.protocol, "ARP");
+        assert_eq!(summary.source_addr, "66:77:88:99:aa:bb");
+        assert_eq!(summary.dest_addr, "ff:ff:ff:ff:ff:ff");
+        assert_eq!(summary.info, "ARP");
+    }
+
+    #[test]
+    fn test_parse_summary_invalid_packet() {
+        // Test with insufficient data
+        let data = vec![0x00, 0x01, 0x02];
+        let result = parse_summary(&data, 1, 1_000_000_000);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_dissect_packet_with_layers() {
+        // Create a mock IPv4 TCP packet
+        let mut data = Vec::new();
+
+        // Ethernet header
+        data.extend_from_slice(&[0x00, 0x11, 0x22, 0x33, 0x44, 0x55]);
+        data.extend_from_slice(&[0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB]);
+        data.extend_from_slice(&[0x08, 0x00]);
+
+        // IPv4 header
+        data.extend_from_slice(&[0x45, 0x00, 0x00, 0x3C]);
+        data.extend_from_slice(&[0x00, 0x01, 0x00, 0x00]);
+        data.extend_from_slice(&[0x40, 0x06, 0x00, 0x00]);
+        data.extend_from_slice(&[0xC0, 0xA8, 0x01, 0x01]);
+        data.extend_from_slice(&[0xC0, 0xA8, 0x01, 0x02]);
+
+        // TCP header
+        data.extend_from_slice(&[0xD4, 0x31, 0x00, 0x50]);
+        data.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+        data.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+        data.extend_from_slice(&[0x50, 0x02, 0x20, 0x00]);
+        data.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+
+        let result = dissect_packet(&data, 1);
+        assert!(result.is_some());
+
+        let detail = result.unwrap();
+        assert!(detail.layers.len() >= 2); // At least Ethernet + IP layers
+        assert_eq!(detail.layers[0].name, "Ethernet");
+        assert!(detail.layers[1].name.contains("Internet Protocol"));
+        assert!(detail.raw_bytes.len() > 0);
+    }
+
+    #[test]
+    fn test_application_layer_parsing_dns() {
+        let mut layers = Vec::new();
+        let payload = b"\x00\x01\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01";
+
+        parse_application_layer(&mut layers, 53, 53, payload, false);
+
+        assert_eq!(layers.len(), 1);
+        assert_eq!(layers[0].name, "Domain Name System");
+        assert!(layers[0].fields.iter().any(|(k, v)| k == "Port" && v.contains("Response")));
+    }
+
+    #[test]
+    fn test_application_layer_parsing_http() {
+        let mut layers = Vec::new();
+        let payload = b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";
+
+        parse_application_layer(&mut layers, 80, 80, payload, true);
+
+        assert_eq!(layers.len(), 1);
+        assert_eq!(layers[0].name, "Hypertext Transfer Protocol");
+        assert!(layers[0].fields.iter().any(|(k, v)| k == "Method" && v == "GET"));
+    }
 }

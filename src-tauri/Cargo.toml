@@ -2,7 +2,7 @@
 name = "auracap"
 version = "0.1.0"
 description = "AuraCap Network Analyzer"
-authors = ["you"]
+authors = ["pallab-js <sonowalpallabjyoti@gmail>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -34,4 +34,12 @@ pnet = "0.34.0"
 # Concurrency
 tokio = { version = "1", features = ["full"] }
 futures = "0.3"
+
+# Logging
+log = "0.4"
+env_logger = "0.10"
+
+[dev-dependencies]
+# Testing
+tokio-test = "0.4"
 

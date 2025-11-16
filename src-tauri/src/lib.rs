@@ -9,6 +9,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use crate::model::CachedPacket;
 
+// Initialize logging
+#[cfg(not(debug_assertions))]
+use log::LevelFilter;
+
 pub struct AppState {
     // Sender to signal the capture task to stop
     pub stop_tx: Mutex<Option<mpsc::Sender<()>>>,
@@ -16,6 +20,14 @@ pub struct AppState {
     pub packet_cache: Arc<Mutex<BTreeMap<u64, CachedPacket>>>,
 }
 
+/// Lists all available network interfaces for packet capture.
+///
+/// Returns a vector of interface names that can be used for capturing network packets.
+/// This function requires appropriate permissions to access network interfaces.
+///
+/// # Returns
+/// - `Ok(Vec<String>)`: List of available network interface names
+/// - `Err(String)`: Error message if interface enumeration fails
 #[tauri::command]
 fn list_interfaces() -> Result<Vec<String>, String> {
     match pcap::Device::list() {
@@ -26,6 +38,23 @@ fn list_interfaces() -> Result<Vec<String>, String> {
     }
 }
 
+/// Starts packet capture on the specified network interface.
+///
+/// This function initiates asynchronous packet capture using libpcap. The capture runs
+/// in a background task and emits packet batches to the frontend via Tauri events.
+/// Only one capture session can be active at a time.
+///
+/// # Arguments
+/// * `interface_name` - Name of the network interface to capture on
+/// * `app_handle` - Tauri app handle for emitting events
+/// * `state` - Application state containing capture control structures
+///
+/// # Returns
+/// - `Ok(())`: Capture started successfully
+/// - `Err(String)`: Error message if capture cannot be started
+///
+/// # Events Emitted
+/// - `"new_packet_batch"`: Emitted periodically with batches of captured packets
 #[tauri::command]
 async fn start_capture(
     interface_name: String,
@@ -60,6 +89,17 @@ async fn start_capture(
     Ok(())
 }
 
+/// Stops the currently active packet capture session.
+///
+/// Signals the capture task to stop gracefully. Any remaining packets in the
+/// current batch will be emitted before the capture fully stops.
+///
+/// # Arguments
+/// * `state` - Application state containing the capture control channel
+///
+/// # Returns
+/// - `Ok(())`: Stop signal sent successfully
+/// - `Err(String)`: Error message if stopping fails
 #[tauri::command]
 fn stop_capture(state: tauri::State<'_, AppState>) -> Result<(), String> {
     let mut stop_tx_guard = state.stop_tx.lock().map_err(|e| format!("Failed to lock state: {}", e))?;
@@ -69,6 +109,18 @@ fn stop_capture(state: tauri::State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
+/// Retrieves detailed protocol dissection for a specific packet.
+///
+/// Performs full protocol analysis on the raw packet data, breaking it down
+/// into protocol layers (Ethernet, IP, TCP/UDP, Application) with field details.
+///
+/// # Arguments
+/// * `id` - Unique identifier of the packet to analyze
+/// * `state` - Application state containing the packet cache
+///
+/// # Returns
+/// - `Ok(PacketDetail)`: Detailed packet analysis with protocol layers
+/// - `Err(String)`: Error message if packet not found or dissection fails
 #[tauri::command]
 async fn get_packet_detail(
     id: u64,
@@ -86,6 +138,22 @@ async fn get_packet_detail(
     }
 }
 
+/// Exports selected packets to a PCAP file.
+///
+/// Creates a standard PCAP file containing the raw packet data for the specified
+/// packet IDs. The packets are written in chronological order based on their IDs.
+///
+/// # Arguments
+/// * `file_path` - Path where the PCAP file should be created
+/// * `packet_ids` - List of packet IDs to include in the export
+/// * `state` - Application state containing the packet cache
+///
+/// # Returns
+/// - `Ok(usize)`: Number of packets successfully exported
+/// - `Err(String)`: Error message if export fails
+///
+/// # PCAP Format
+/// Uses libpcap format with microsecond timestamp precision.
 #[tauri::command]
 fn export_pcap(
     file_path: String,
@@ -127,6 +195,22 @@ fn export_pcap(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize logging
+    #[cfg(debug_assertions)]
+    {
+        env_logger::Builder::from_default_env()
+            .filter_level(log::LevelFilter::Debug)
+            .init();
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        env_logger::Builder::from_default_env()
+            .filter_level(log::LevelFilter::Info)
+            .init();
+    }
+
+    log::info!("Starting AuraCap Network Analyzer");
+
     tauri::Builder::default()
         .manage(AppState {
             stop_tx: Mutex::new(None),
@@ -141,6 +225,7 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {
+            log::error!("Failed to start Tauri application: {}", error);
             eprintln!("Failed to start Tauri application: {}", error);
             std::process::exit(1);
         });

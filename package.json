@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "echo 'Frontend tests not yet implemented - run Rust tests with: cd src-tauri && cargo test'",
+    "test:rust": "cd src-tauri && cargo test"
   },
   "license": "MIT",
   "dependencies": {

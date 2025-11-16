@@ -45,7 +45,7 @@ A modern, cross-platform network packet analyzer built with Tauri, SvelteKit, an
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/r-wire.git
+    git clone https://github.com/pallab-js/r-wire.git
    cd r-wire
    ```
 
@@ -123,6 +123,43 @@ r-wire/
 - **Backend**: Rust, Tauri 1.5
 - **Networking**: pcap, pnet
 - **Concurrency**: Tokio
+- **Logging**: env_logger
+- **Testing**: Built-in Rust test framework
+
+## Recent Improvements
+
+### ✅ Code Quality & Testing
+- **Comprehensive Test Suite**: Added unit tests for packet parsing, filtering, and protocol dissection
+- **Type Checking**: Strict TypeScript configuration with full type safety
+- **Rust Linting**: Clean code with no clippy warnings
+- **Error Handling**: Robust error handling throughout the application
+
+### ✅ Documentation
+- **API Documentation**: Complete Rust API documentation with examples
+- **Code Comments**: Detailed inline documentation for complex logic
+
+### ✅ Development Experience
+- **Logging Framework**: Structured logging with env_logger for debugging
+- **Development Scripts**: Enhanced npm scripts for testing and development
+
+### ✅ Bug Fixes
+- **Timestamp Correction**: Fixed microsecond to nanosecond conversion in packet capture
+- **Race Condition Fix**: Resolved async operation timing issues in capture restart
+- **Memory Management**: Proper cleanup and resource management
+
+## Testing
+
+Run the test suites:
+
+```bash
+# Run Rust tests
+npm run test:rust
+# or directly:
+cd src-tauri && cargo test
+
+# Run TypeScript type checking
+npm run check
+```
 
 ## Contributing
 
@@ -139,4 +176,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-For issues, questions, or contributions, please open an issue on the [GitHub repository](https://github.com/yourusername/r-wire/issues).
+For issues, questions, or contributions, please open an issue on the [GitHub repository](https://github.com/pallab-js/r-wire/issues).

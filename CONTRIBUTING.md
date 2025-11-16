@@ -13,7 +13,7 @@ Thank you for your interest in contributing to AuraCap! This document provides g
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/yourusername/r-wire/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/pallab-js/r-wire/issues)
 2. If not, create a new issue with:
    - Clear title and description
    - Steps to reproduce
@@ -23,7 +23,7 @@ Thank you for your interest in contributing to AuraCap! This document provides g
 
 ### Suggesting Features
 
-1. Check existing feature requests in [Issues](https://github.com/yourusername/r-wire/issues)
+1. Check existing feature requests in [Issues](https://github.com/pallab-js/r-wire/issues)
 2. Open a new issue with:
    - Clear description of the feature
    - Use case and motivation
