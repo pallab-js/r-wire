@@ -3,7 +3,8 @@
   import PacketList from '../lib/components/PacketList.svelte';
   import PacketDetailTabs from '../lib/components/PacketDetailTabs.svelte';
   import StatisticsPanel from '../lib/components/StatisticsPanel.svelte';
-  import { selectedPacket } from '../lib/stores';
+  import StreamDialog from '../lib/components/StreamDialog.svelte';
+  import { selectedPacket, selectedStream } from '../lib/stores';
 
   let showStats = false;
   
@@ -122,6 +123,9 @@
       </div>
     {/if}
   </main>
+
+  <!-- Modals & Overlays -->
+  <StreamDialog />
 </div>
 
 <style>

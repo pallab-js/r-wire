@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { highlightedRange } from '../stores';
+
   export let rawBytes: number[];
 
   // Handle empty or invalid bytes
@@ -26,6 +28,11 @@
 
   const bytesPerLine = 16;
   $: rows = chunkArray(safeBytes, bytesPerLine);
+
+  function isHighlighted(index: number, range: [number, number] | null): boolean {
+    if (!range) return false;
+    return index >= range[0] && index < range[1];
+  }
 </script>
 
 <div class="flex flex-col h-full font-mono text-[0.85rem] bg-[#1e1e1e] text-[#d4d4d4]">
@@ -43,7 +50,12 @@
           <span class="text-[#858585] select-none text-right pr-2 border-r border-[#3e3e3e] group-hover:text-[#aaa]">{((rowIndex * bytesPerLine).toString(16).padStart(8, '0').toUpperCase())}</span>
           <span class="flex gap-1.5 flex-wrap">
             {#each row as byte, byteIndex}
-              <span class="text-[#9cdcfe] min-w-[2ch] text-center">{formatHex(byte)}</span>
+              {@const absoluteIndex = rowIndex * bytesPerLine + byteIndex}
+              <span 
+                class="min-w-[2ch] text-center transition-colors duration-150 rounded-sm {isHighlighted(absoluteIndex, $highlightedRange) ? 'bg-[#007acc] text-white font-bold' : 'text-[#9cdcfe]'}"
+              >
+                {formatHex(byte)}
+              </span>
               {#if (byteIndex + 1) % 8 === 0 && byteIndex < row.length - 1}
                 <span class="mx-1"></span>
               {/if}
@@ -55,8 +67,11 @@
             {/if}
           </span>
           <span class="flex gap-0 text-[#ce9178] tracking-widest opacity-80 group-hover:opacity-100">
-            {#each row as byte}
-              <span>{formatAscii(byte)}</span>
+            {#each row as byte, byteIndex}
+              {@const absoluteIndex = rowIndex * bytesPerLine + byteIndex}
+              <span class="{isHighlighted(absoluteIndex, $highlightedRange) ? 'bg-[#007acc] text-white' : ''}">
+                {formatAscii(byte)}
+              </span>
             {/each}
           </span>
         </div>

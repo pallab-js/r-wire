@@ -12,15 +12,45 @@ export interface PacketSummary {
     info: string;
 }
 
+export interface PacketField {
+    name: string;
+    value: string;
+    range: [number, number]; // (start, end)
+    expert: string | null;
+}
+
 export interface ProtocolLayer {
     name: string;
-    fields: Array<[string, string]>; // (Field Name, Field Value)
+    fields: PacketField[];
+}
+
+export interface ForensicNarrative {
+    summary: string;
+    technical_details: string[];
+}
+
+export interface ForensicIntelligence {
+    entropy: number;
+    ja3_hash: string | null;
+    manufacturer: string | null;
+    risk_score: number;
+}
+
+export interface Artifact {
+    name: string;
+    mime_type: string;
+    size: number;
+    hash_sha256: string;
 }
 
 export interface PacketDetail {
     summary: PacketSummary;
     layers: ProtocolLayer[];
     raw_bytes: number[]; // Vec<u8> as number[]
+    expert_summary: string[];
+    narrative: ForensicNarrative;
+    intelligence: ForensicIntelligence;
+    artifacts: Artifact[];
 }
 
 export const availableInterfaces = writable<string[]>([]);
@@ -83,8 +113,16 @@ export function setPacketList(packets: PacketSummary[]) {
     }
 }
 
+export interface StreamMessage {
+    is_client: boolean;
+    data: number[]; // Vec<u8> as number[]
+    timestamp: number;
+}
+
 export const selectedPacket = writable<PacketDetail | null>(null);
+export const selectedStream = writable<StreamMessage[] | null>(null);
 export const captureError = writable<string | null>(null);
+export const highlightedRange = writable<[number, number] | null>(null);
 
 // Initialize debounced filter with current filter value
 _debouncedFilterInternal.set('');

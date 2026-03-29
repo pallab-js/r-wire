@@ -43,6 +43,10 @@ vite.config.ts.timestamp-*
 target/
 # Note: Cargo.lock should be committed for binary applications
 
+# AuraCap Local Database
+capture.db*
+src-tauri/capture.db*
+
 # Tauri
 src-tauri/target/
 src-tauri/gen/

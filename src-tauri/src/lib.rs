@@ -233,6 +233,130 @@ fn export_pcap_all(
     Ok(exported_count)
 }
 
+/// Retrieves all packet summaries belonging to the same flow as the given packet.
+#[tauri::command]
+async fn get_flow_packets(
+    packet_id: u64,
+    state: tauri::State<'_, AppState>
+) -> Result<Vec<model::PacketSummary>, String> {
+    let flows = state.flow_table.lock().map_err(|e| format!("Failed to lock flow table: {}", e))?;
+    
+    // Find the flow key for this packet ID
+    let flow_key = flows.flows.iter()
+        .find(|(_, flow)| flow.packet_ids.contains(&packet_id))
+        .map(|(key, _)| key.clone());
+    
+    if let Some(key) = flow_key {
+        let flow = flows.flows.get(&key).unwrap();
+        let packet_ids = flow.packet_ids.clone();
+        drop(flows); // Release lock
+        
+        let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
+        
+        let mut packet_list = Vec::new();
+        // Fetch summaries for all IDs in this flow
+        for chunk in packet_ids.chunks(999) {
+            let placeholders = vec!["?"; chunk.len()].join(",");
+            let query = format!(
+                "SELECT id, timestamp_ns, source_addr, dest_addr, protocol, length, info FROM packets WHERE id IN ({}) ORDER BY id ASC", 
+                placeholders
+            );
+            let mut stmt = db.prepare(&query).map_err(|e| format!("Prepare failed: {}", e))?;
+            
+            let i64_ids: Vec<i64> = chunk.iter().map(|&id| id as i64).collect();
+            let params: Vec<&dyn rusqlite::ToSql> = i64_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+            
+            let rows = stmt.query_map(&*params, |row| {
+                Ok(model::PacketSummary {
+                    id: row.get::<_, i64>(0)? as u64,
+                    timestamp: row.get(1)?,
+                    source_addr: row.get(2)?,
+                    dest_addr: row.get(3)?,
+                    protocol: row.get(4)?,
+                    length: row.get(5)?,
+                    info: row.get(6)?,
+                })
+            }).map_err(|e| format!("Query failed: {}", e))?;
+            
+            for row in rows {
+                if let Ok(summary) = row {
+                    packet_list.push(summary);
+                }
+            }
+        }
+        Ok(packet_list)
+    } else {
+        Err("Packet does not belong to a tracked flow.".to_string())
+    }
+}
+
+/// Reassembles the transport layer stream for the given packet's flow.
+#[tauri::command]
+async fn get_stream_content(
+    packet_id: u64,
+    state: tauri::State<'_, AppState>
+) -> Result<Vec<model::StreamMessage>, String> {
+    let flows = state.flow_table.lock().map_err(|e| format!("Failed to lock flow table: {}", e))?;
+    
+    let flow_entry = flows.flows.iter()
+        .find(|(_, flow)| flow.packet_ids.contains(&packet_id));
+    
+    if let Some((key, flow)) = flow_entry {
+        let packet_ids = flow.packet_ids.clone();
+        let flow_key = key.clone();
+        drop(flows);
+        
+        let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
+        let mut messages: Vec<model::StreamMessage> = Vec::new();
+        
+        // Fetch raw data for all packets in the flow
+        for chunk in packet_ids.chunks(999) {
+            let placeholders = vec!["?"; chunk.len()].join(",");
+            let query = format!(
+                "SELECT timestamp_ns, data, source_addr FROM packets WHERE id IN ({}) ORDER BY timestamp_ns ASC",
+                placeholders
+            );
+            let mut stmt = db.prepare(&query).map_err(|e| format!("Prepare failed: {}", e))?;
+            
+            let i64_ids: Vec<i64> = chunk.iter().map(|&id| id as i64).collect();
+            let params: Vec<&dyn rusqlite::ToSql> = i64_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+            
+            let rows = stmt.query_map(&*params, |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?, row.get::<_, String>(2)?))
+            }).map_err(|e| format!("Query failed: {}", e))?;
+            
+            for row in rows {
+                if let Ok((ts, data, src_addr)) = row {
+                    if let Some(payload) = dissector::get_transport_payload(&data) {
+                        if payload.is_empty() { continue; }
+                        
+                        // Determine if this is client -> server
+                        // For canonicalized FlowKey, the first address in the 5-tuple is our "client" reference
+                        let is_client = src_addr == flow_key.src_ip.to_string();
+                        
+                        // Merge with last message if from same side
+                        if let Some(last) = messages.last_mut() {
+                            if last.is_client == is_client {
+                                last.data.extend(payload);
+                                continue;
+                            }
+                        }
+                        
+                        messages.push(model::StreamMessage {
+                            is_client,
+                            data: payload,
+                            timestamp: ts,
+                        });
+                    }
+                }
+            }
+        }
+        Ok(messages)
+    } else {
+        Err("Flow not found.".to_string())
+    }
+}
+
 /// Stops the currently active packet capture session.
 #[tauri::command]
 fn stop_capture(state: tauri::State<'_, AppState>) -> Result<(), String> {
@@ -404,7 +528,9 @@ pub fn run() {
             export_pcap,
             export_pcap_all,
             get_packets,
-            get_packet_count
+            get_packet_count,
+            get_flow_packets,
+            get_stream_content
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {

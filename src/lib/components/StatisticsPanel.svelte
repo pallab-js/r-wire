@@ -180,6 +180,39 @@
         </div>
       </div>
 
+      <!-- Network Topology Widget -->
+      <div class="bg-[#252526] p-4 rounded border border-[#3e3e3e] flex flex-col min-h-[400px]">
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="m-0 text-[#dcdcaa] text-sm font-semibold tracking-wide uppercase">Network Topology (Conversational Map)</h4>
+          <span class="text-[0.65rem] text-[#888] bg-[#1e1e1e] px-2 py-0.5 rounded border border-white/5">TOP 20 CONVERSATIONS</span>
+        </div>
+        <div class="flex-1 bg-[#1e1e1e] rounded border border-[#333] relative overflow-hidden group">
+          <!-- Simplified Node Graph implementation for standalone use -->
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
+             <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+               <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2 2" />
+               <circle cx="50" cy="50" r="20" fill="none" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2 2" />
+             </svg>
+          </div>
+          <div class="relative z-10 p-4 h-full overflow-y-auto custom-scrollbar">
+             <div class="flex flex-col gap-2">
+                {#each stats.topSources.slice(0, 10) as src}
+                   {#each stats.topDestinations.slice(0, 2) as dst}
+                      <div class="flex items-center justify-between bg-[#252526]/50 p-2 rounded border border-white/5 hover:border-[#4ec9b0]/30 transition-colors text-xs font-mono">
+                         <span class="text-[#4ec9b0] truncate w-[120px]">{src.address}</span>
+                         <div class="flex-1 flex items-center px-4 opacity-40">
+                            <div class="h-px flex-1 bg-gradient-to-r from-[#4ec9b0] to-[#dcdcaa]"></div>
+                            <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" class="text-[#dcdcaa]"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                         </div>
+                         <span class="text-[#dcdcaa] truncate w-[120px] text-right">{dst.address}</span>
+                      </div>
+                   {/each}
+                {/each}
+             </div>
+          </div>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="bg-[#252526] p-4 rounded border border-[#3e3e3e]">
           <h4 class="m-0 mb-4 text-[#dcdcaa] text-sm font-semibold tracking-wide uppercase">Top Sources</h4>

@@ -1,11 +1,20 @@
 <script lang="ts">
   import { listen } from '@tauri-apps/api/event';
   import { invoke } from '@tauri-apps/api/tauri';
-  import { selectedPacket, addPackets, totalFilteredCount, debouncedFilter, packetList, type PacketSummary, type PacketDetail } from '../stores';
+  import { selectedPacket, selectedStream, captureError, addPackets, totalFilteredCount, debouncedFilter, packetList, type PacketSummary, type PacketDetail, type StreamMessage } from '../stores';
   import { onMount } from 'svelte';
 
   let selectedId: number | null = null;
   
+  // Context Menu state
+  let contextMenuVisible = false;
+  let contextMenuPos = { x: 0, y: 0 };
+  let contextMenuPacketId: number | null = null;
+  let contextMenuProtocol: string | null = null;
+
+  // Derive if current context menu packet is a stream-capable protocol
+  $: isStream = contextMenuProtocol?.toLowerCase() === 'tcp' || contextMenuProtocol?.toLowerCase() === 'udp';
+
   // Local cache for current window of packets
   let visiblePackets: PacketSummary[] = [];
   
@@ -61,7 +70,6 @@
     
     listen('new_packet_batch', (event: any) => {
       const newPackets = event.payload as PacketSummary[];
-      // We still update statistics via addPackets, which also updates total count
       addPackets(newPackets);
     }).then(fn => {
       unlistenFn = fn;
@@ -84,6 +92,46 @@
     } catch (error: any) {
       console.error('Failed to get packet detail:', error);
     }
+  }
+
+  async function handleContextMenu(e: MouseEvent, packet: PacketSummary) {
+    e.preventDefault();
+    contextMenuVisible = true;
+    contextMenuPos = { x: e.clientX, y: e.clientY };
+    contextMenuPacketId = packet.id;
+    contextMenuProtocol = packet.protocol;
+  }
+
+  function closeContextMenu() {
+    contextMenuVisible = false;
+  }
+
+  async function followStream() {
+    if (contextMenuPacketId === null) return;
+    
+    // Only allow for TCP/UDP
+    if (!isStream) {
+      captureError.set("Follow Stream is only supported for TCP and UDP traffic.");
+      setTimeout(() => captureError.set(null), 3000);
+      closeContextMenu();
+      return;
+    }
+
+    try {
+      captureError.set("Reassembling stream...");
+      const messages = await invoke<StreamMessage[]>('get_stream_content', { packetId: contextMenuPacketId });
+      if (messages && messages.length > 0) {
+        selectedStream.set(messages);
+        captureError.set(null);
+      } else {
+        captureError.set("No conversational data found for this packet.");
+        setTimeout(() => captureError.set(null), 3000);
+      }
+    } catch (err) {
+      console.error('Failed to follow stream:', err);
+      captureError.set(`Error reassembling stream: ${err}`);
+    }
+    closeContextMenu();
   }
 
   function formatTimestamp(timestamp: number): string {
@@ -128,7 +176,16 @@
   }
 </script>
 
-<div class="flex-1 overflow-y-auto overflow-x-auto bg-[#1e1e1e] h-full relative" on:scroll={handleScroll} bind:clientHeight>
+<div 
+  class="flex-1 overflow-y-auto overflow-x-auto bg-[#1e1e1e] h-full relative" 
+  on:scroll={handleScroll} 
+  on:click={closeContextMenu}
+  on:keydown={(e) => e.key === 'Escape' && closeContextMenu()}
+  bind:clientHeight
+  role="grid"
+  aria-label="Packet list"
+  tabindex="0"
+>
   <table class="w-full border-collapse font-mono text-[0.85rem] min-w-max">
     <thead class="sticky top-0 bg-[#252526] z-10 shadow-sm border-b border-[#3e3e3e]">
       <tr>
@@ -153,6 +210,7 @@
         <tr 
           class="cursor-pointer bg-[#1e1e1e] hover:bg-[#2a2d2e] {selectedId === packet.id ? '!bg-[#094771]' : ''} group"
           on:click={() => selectPacket(packet)}
+          on:contextmenu={(e) => handleContextMenu(e, packet)}
         >
           <td class="px-3 py-0 text-[#888] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[#ccc]">{packet.id}</td>
           <td class="px-3 py-0 text-[#888] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[#ccc]">{formatTimestamp(packet.timestamp)}</td>
@@ -179,6 +237,29 @@
       {:else}
         No packets captured yet. Click "Start" to begin capturing.
       {/if}
+    </div>
+  {/if}
+
+  <!-- Context Menu -->
+  {#if contextMenuVisible}
+    <div 
+      class="fixed z-[200] bg-[#252526] border border-[#3e3e3e] shadow-xl rounded py-1 min-w-[160px] font-sans"
+      style="left: {contextMenuPos.x}px; top: {contextMenuPos.y}px"
+      on:click|stopPropagation
+      on:keydown={(e) => e.key === 'Escape' && closeContextMenu()}
+      role="menu"
+      aria-label="Packet context menu"
+      tabindex="-1"
+    >
+      <button 
+        on:click={followStream}
+        disabled={!isStream}
+        class="w-full text-left px-4 py-2 hover:not-disabled:bg-[#007acc] hover:not-disabled:text-white bg-transparent border-none text-[#ccc] disabled:text-[#555] text-sm flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed transition-colors"
+        title={isStream ? "Follow Stream" : "Follow Stream (TCP/UDP only)"}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 11V7a5 5 0 0 1 10 0v4"/><rect x="3" y="11" width="18" height="11" rx="2"/><circle cx="12" cy="16" r="2"/></svg>
+        Follow Stream
+      </button>
     </div>
   {/if}
 </div>

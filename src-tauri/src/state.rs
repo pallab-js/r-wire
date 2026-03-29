@@ -14,7 +14,8 @@ pub struct FlowKey {
 impl FlowKey {
     pub fn new(src_ip: IpAddr, dst_ip: IpAddr, protocol: u8, src_port: u16, dst_port: u16) -> Self {
         // Canonicalize the flow key so (A, B) is same as (B, A) for bidirectional streams
-        if (src_ip, src_port) < (dst_ip, dst_port) {
+        // We compare the tuples of (IP, Port) to ensure a stable sort order
+        if (src_ip, src_port) <= (dst_ip, dst_port) {
             FlowKey { src_ip, dst_ip, protocol, src_port, dst_port }
         } else {
             FlowKey { src_ip: dst_ip, dst_ip: src_ip, protocol, src_port: dst_port, dst_port: src_port }
@@ -61,5 +62,43 @@ impl FlowTable {
 
     pub fn clear(&mut self) {
         self.flows.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+
+    #[test]
+    fn test_flow_key_canonicalization() {
+        let ip1 = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        let ip2 = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1));
+        
+        // Direction A -> B
+        let key1 = FlowKey::new(ip1, ip2, 6, 12345, 80);
+        // Direction B -> A
+        let key2 = FlowKey::new(ip2, ip1, 6, 80, 12345);
+        
+        assert_eq!(key1, key2, "FlowKeys should be identical regardless of direction");
+        assert_eq!(key1.src_ip, ip1, "Canonicalized key should have the smaller IP/Port as source");
+    }
+
+    #[test]
+    fn test_flow_table_update() {
+        let mut table = FlowTable::new();
+        let ip1 = IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1));
+        let ip2 = IpAddr::V4(Ipv4Addr::new(2, 2, 2, 2));
+        let key = FlowKey::new(ip1, ip2, 6, 1000, 2000);
+        
+        table.update(1, 100, 64, key.clone());
+        table.update(2, 200, 128, key.clone());
+        
+        let flow = table.flows.get(&key).expect("Flow should exist");
+        assert_eq!(flow.packet_count, 2);
+        assert_eq!(flow.total_bytes, 192);
+        assert_eq!(flow.start_time_ns, 100);
+        assert_eq!(flow.end_time_ns, 200);
+        assert_eq!(flow.packet_ids, vec![1, 2]);
     }
 }

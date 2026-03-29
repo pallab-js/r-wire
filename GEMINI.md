@@ -1,61 +1,49 @@
 # AuraCap (r-wire) Context & Guidelines
 
-AuraCap is a modern, cross-platform network packet analyzer (similar to Wireshark) built with **Tauri**, **SvelteKit**, and **Rust**.
+AuraCap is a high-performance network packet analyzer and forensic suite built with **Tauri**, **SvelteKit 5**, and **Rust**.
 
 ## Project Overview
 
 - **Architecture**: 
-  - **Backend (Rust)**: Handles low-level packet capture (`pcap` crate), protocol parsing (`pnet` crate), and state management.
-  - **Frontend (SvelteKit 5)**: Provides a responsive dashboard, packet list, protocol tree, hex view, and real-time statistics.
-  - **Communication**: Uses Tauri commands for control (start/stop/export) and Tauri events (`new_packet_batch`) for streaming captured packets to the frontend.
-- **Key Files**:
-  - `src-tauri/src/main.rs` & `lib.rs`: Entry point and Tauri command handlers.
-  - `src-tauri/src/capture.rs`: The core packet capture loop and batching logic.
-  - `src-tauri/src/dissector.rs`: Protocol analysis and summary parsing.
-  - `src/lib/stores.ts`: Central state management using Svelte stores.
-  - `src/lib/utils/filter.ts`: Packet filtering logic.
-  - `src/lib/utils/statistics.ts`: Real-time traffic analysis.
+  - **Backend (Rust)**: Handles low-level capture (`pcap`), protocol dissection (`pnet`), and stateful connection tracking.
+  - **Storage (SQLite)**: All captured packets are indexed in a local `capture.db` at the project root for high-performance pagination and filtering.
+  - **Frontend (SvelteKit 5)**: A professional, resizable dashboard featuring advanced analytical views (Timeline, Sequence, Intelligence).
+- **Communication**: Tauri commands for data retrieval and state management; events for real-time packet streaming.
+
+## Key Files & Modules
+
+- `src-tauri/src/lib.rs`: Tauri command hub and SQLite initialization.
+- `src-tauri/src/state.rs`: **FlowTable** logic for 5-tuple connection tracking.
+- `src-tauri/src/dissector.rs`: Forensic dissection engine (Entropy, OUI lookup, Magic Bytes, Narrative generation).
+- `src/lib/stores.ts`: Central state including `highlightedRange` for Tree-Hex sync.
+- `src/lib/components/`: Modular forensic tabs (Narrative, Intelligence, Artifacts, Timeline, Sequence).
 
 ## Development Workflows
 
-### Building and Running
-
-- **Development**: `npm run tauri dev`
-  - *Note*: On macOS and Linux, packet capture usually requires root privileges: `sudo npm run tauri dev`.
-- **Production Build**: `npm run tauri build`
-- **Linting & Types**: `npm run check`
-- **Rust Tests**: `cd src-tauri && cargo test`
+### Testing Standards
+Maintain technical integrity by running the full suite:
+- **Full Suite**: `npm run test:unit && cd src-tauri && sudo cargo test`
+- **Backend**: `cd src-tauri && cargo test`
+- **Frontend**: `npm run test:unit`
 
 ### Key Commands (Tauri)
-- `list_interfaces`: Enumerates available network devices.
-- `start_capture(interface)`: Begins asynchronous capture in a background task.
-- `stop_capture`: Signals the background task to terminate.
-- `get_packet_detail(id)`: Requests deep dissection of a cached packet.
-- `export_pcap(path, ids)`: Saves selected packets to a standard PCAP file.
+- `start_capture(interface, filter)`: Begins capture with optional BPF filter.
+- `get_packets(offset, limit, filter)`: Cursor-based pagination from SQLite.
+- `get_stream_content(packet_id)`: Reassembles TCP/UDP conversations.
+- `get_flow_packets(packet_id)`: Retrieves all summaries in a conversation.
 
 ## Technical Standards & Conventions
 
 ### Backend (Rust)
-- **Concurrency**: Uses `tokio` for async tasks and `std::thread` for the blocking `pcap` capture loop.
-- **Memory Management**: 
-  - Packet data is cached in a `BTreeMap` within `AppState` (`Arc<Mutex<AppState>>`).
-  - Cache size is limited to `MAX_CACHE_SIZE` (100,000 packets) to prevent memory exhaustion.
-- **Error Handling**: Uses `Result<T, String>` for Tauri commands to provide clear error messages to the frontend.
-- **Logging**: Uses `env_logger` and `log` crate.
+- **Statefulness**: Use `FlowTable` for any logic requiring conversational context.
+- **Independence**: All intelligence logic must be local and deterministic (No AI/Cloud).
+- **Performance**: Use zero-copy parsing where possible; block-based DB writes.
 
 ### Frontend (SvelteKit)
-- **Framework**: Svelte 5. Uses standard Svelte stores (`writable`, `derived`) for state.
-- **Performance**: 
-  - Packets are emitted in batches (default 50 packets or 250ms) to minimize IPC overhead.
-  - The frontend packet list is capped at `MAX_FRONTEND_PACKETS` (50,000) to maintain UI responsiveness.
-  - Heavy operations (filtering, statistics) are performed in `derived` stores to ensure reactivity without redundant calculations.
-- **Styling**: Modern UI with protocol-specific color coding.
+- **Virtualization**: Never store full packet arrays in memory. Use `totalFilteredCount` and windowed fetching.
+- **Interactivity**: Maintain the Tree-Hex synchronization via the `highlightedRange` store.
+- **Accessibility**: All interactive elements must have proper ARIA roles and labels.
 
-### Protocol Support
-- Currently supports Ethernet, IPv4, IPv6, TCP, UDP, and ICMP.
-- Summary parsing provides quick info for the packet list; full dissection provides a hierarchical tree view.
-
-## Troubleshooting
-
-- **Permission Errors**: If capture fails, ensure the user has access to `/dev/bpf*` (macOS) or `CAP_NET_RAW` (Linux). Running with `sudo` is the common development workaround.
-- **IPC Bottlenecks**: If the UI lags during high-traffic captures, consider increasing the `BATCH_SIZE` or decreasing the `MAX_FRONTEND_PACKETS` in `src/lib/stores.ts`.
+## Operational Mandates
+- **Database Location**: Always initialize the SQLite database at the project root (relative to `src-tauri` or root) to avoid Tauri's dev-rebuild loop.
+- **Standalone Integrity**: Zero external dependencies for core analytical features.

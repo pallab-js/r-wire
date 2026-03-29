@@ -163,6 +163,7 @@
       bind:value={$bpfFilter}
       disabled={$isCapturing}
       class="flex-1 p-2 bg-transparent text-white border-none text-sm font-sans outline-none placeholder-[#666] disabled:opacity-50"
+      spellcheck="false"
     />
   </div>
 
@@ -222,6 +223,7 @@
       placeholder="Display Filter (e.g. protocol:tcp)..."
       bind:value={$displayFilter}
       class="flex-1 p-2 bg-transparent text-white border-none text-sm font-sans outline-none placeholder-[#666]"
+      spellcheck="false"
     />
     {#if $displayFilter}
       <button 
