@@ -14,6 +14,8 @@
   import { onMount } from 'svelte';
 
   let interfaces: string[] = [];
+  let intensityActive = false;
+  let intensityTimer: ReturnType<typeof setTimeout> | null = null;
 
   onMount(async () => {
     try {
@@ -24,6 +26,20 @@
       console.error('Failed to list interfaces:', error);
       captureError.set('Failed to list network interfaces');
     }
+
+    // Listen for batches to trigger intensity pulse
+    const unlisten = await listen('new_packet_batch', () => {
+      intensityActive = true;
+      if (intensityTimer) clearTimeout(intensityTimer);
+      intensityTimer = setTimeout(() => {
+        intensityActive = false;
+      }, 150);
+    });
+
+    return () => {
+      unlisten();
+      if (intensityTimer) clearTimeout(intensityTimer);
+    };
   });
 
   async function startCapture() {
@@ -58,13 +74,9 @@
   }
 
    async function restartCapture() {
-    // Clear packet list and selected packet
     setPacketList([]);
     selectedPacket.set(null);
-
-    // Stop and start - await both operations properly
     await stopCapture();
-    // Small delay to ensure stop completes and resources are freed
     await new Promise(resolve => setTimeout(resolve, 100));
     await startCapture();
   }
@@ -100,7 +112,6 @@
           packetIds 
         });
         captureError.set(null);
-        // Show success message briefly
         const successMsg = `PCAP exported successfully: ${exportedCount} packets`;
         captureError.set(successMsg);
         setTimeout(() => captureError.set(null), 3000);
@@ -114,47 +125,55 @@
   }
 </script>
 
-<div class="controls">
-  <div class="control-group">
-    <label for="interface-select">Network Interface:</label>
+<div class="px-4 py-3 bg-[#252526] border-b border-[#3e3e3e] flex items-center gap-5 flex-wrap shadow-[0_2px_8px_rgba(0,0,0,0.2)] relative z-20">
+  <div class="flex items-center gap-3">
+    <div class="w-2.5 h-2.5 rounded-full transition-all duration-300 {intensityActive ? 'scale-150 bg-white shadow-[0_0_12px_#fff]' : ($isCapturing ? 'bg-[#4ec9b0] shadow-[0_0_8px_rgba(78,201,176,0.4)]' : 'bg-[#444]')}"></div>
+    <label for="interface-select" class="text-[#888] text-[0.85rem] font-semibold uppercase tracking-wider">Interface:</label>
     <select 
       id="interface-select"
       bind:value={$selectedInterface}
       disabled={$isCapturing}
+      class="px-2.5 py-1.5 bg-[#1e1e1e] text-[#ccc] border border-[#444] rounded text-sm min-w-[160px] outline-none focus:border-[#007acc] disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      <option value={null}>Select an interface...</option>
+      <option value={null}>Select Device...</option>
       {#each $availableInterfaces as iface}
         <option value={iface}>{iface}</option>
       {/each}
     </select>
   </div>
 
-  <div class="button-group">
+  <div class="flex items-center gap-2">
     <button 
       on:click={startCapture}
       disabled={!$selectedInterface || $isCapturing}
-      class="btn btn-primary"
+      class="px-3 py-1.5 border-none rounded cursor-pointer text-[0.85rem] font-semibold transition-all duration-200 flex items-center gap-1.5 bg-[#007acc] text-white hover:not-disabled:bg-[#005a9e] hover:not-disabled:-translate-y-px disabled:opacity-40 disabled:cursor-not-allowed"
+      title="Start Capture"
     >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       Start
     </button>
     <button 
       on:click={stopCapture}
       disabled={!$isCapturing}
-      class="btn btn-secondary"
+      class="px-3 py-1.5 border-none rounded cursor-pointer text-[0.85rem] font-semibold transition-all duration-200 flex items-center gap-1.5 bg-[#333] text-[#ccc] hover:not-disabled:bg-[#444] hover:not-disabled:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+      title="Stop Capture"
     >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
       Stop
     </button>
     <button 
       on:click={restartCapture}
       disabled={!$selectedInterface || !$isCapturing}
-      class="btn btn-secondary"
+      class="px-3 py-1.5 border-none rounded cursor-pointer text-[0.85rem] font-semibold transition-all duration-200 flex items-center gap-1.5 bg-[#333] text-[#ccc] hover:not-disabled:bg-[#444] hover:not-disabled:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+      title="Restart Capture"
     >
-      Restart
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
     </button>
+    <div class="w-px h-6 bg-[#3e3e3e] mx-1"></div>
     <button 
       on:click={clearPackets}
       disabled={$packetList.length === 0}
-      class="btn btn-secondary"
+      class="px-3 py-1.5 border-none rounded cursor-pointer text-[0.85rem] font-semibold transition-all duration-200 flex items-center gap-1.5 bg-[#333] text-[#ccc] hover:not-disabled:bg-[#444] hover:not-disabled:text-white disabled:opacity-40 disabled:cursor-not-allowed"
       title="Clear packet list"
     >
       Clear
@@ -162,25 +181,27 @@
     <button 
       on:click={exportPcap}
       disabled={$packetList.length === 0}
-      class="btn btn-secondary"
+      class="px-3 py-1.5 border-none rounded cursor-pointer text-[0.85rem] font-semibold transition-all duration-200 flex items-center gap-1.5 bg-[#333] text-[#ccc] hover:not-disabled:bg-[#444] hover:not-disabled:text-white disabled:opacity-40 disabled:cursor-not-allowed"
       title="Export to PCAP file"
     >
       Export PCAP
     </button>
   </div>
 
-  <div class="filter-group">
-    <label for="filter-input">Filter:</label>
+  <div class="flex items-center bg-[#1e1e1e] border border-[#444] rounded flex-1 max-w-[450px] px-2 transition-colors duration-200 focus-within:border-[#007acc]">
+    <div class="text-[#666] flex items-center">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+    </div>
     <input 
       id="filter-input"
       type="text"
-      placeholder="protocol:tcp, ip:192.168, port:80, or search..."
+      placeholder="Filter (e.g. protocol:tcp, ip:192.168, port:80)..."
       bind:value={$displayFilter}
-      class="filter-input"
+      class="flex-1 p-2 bg-transparent text-white border-none text-sm font-sans outline-none placeholder-[#666]"
     />
     {#if $displayFilter}
       <button 
-        class="clear-filter-btn"
+        class="bg-transparent border-none text-[#888] text-lg cursor-pointer px-1 hover:text-white"
         on:click={() => displayFilter.set('')}
         title="Clear filter"
       >
@@ -189,206 +210,24 @@
     {/if}
   </div>
 
-  <div class="stats">
-    <span class="packet-count">Packets: <strong>{$packetList.length.toLocaleString()}</strong></span>
+  <div class="ml-auto">
+    <span class="text-[#888] text-[0.85rem] px-3 py-1.5 bg-[#1e1e1e] rounded border {$isCapturing ? 'border-[#4ec9b0]' : 'border-[#3e3e3e]'} flex items-center gap-2">
+      <span class="uppercase font-semibold text-[0.75rem]">Packets</span>
+      <strong class="text-[#4ec9b0] font-mono text-base">{$packetList.length.toLocaleString()}</strong>
+    </span>
   </div>
 
   {#if $captureError}
-    <div class="error-alert" class:success={$captureError.startsWith('PCAP exported')}>
+    <div class="fixed top-[60px] right-5 bg-{$captureError.startsWith('PCAP exported') ? '[#1a5a1a]' : '[#5a1a1a]'} text-{$captureError.startsWith('PCAP exported') ? '[#6bff6b]' : '[#ff6b6b]'} px-4 py-3 rounded-md border border-{$captureError.startsWith('PCAP exported') ? '[#2a7a2a]' : '[#7a2a2a]'} flex items-center gap-4 z-[1000] shadow-[0_4px_12px_rgba(0,0,0,0.3)] animate-[slideIn_0.3s_ease-out]">
       <span>{$captureError}</span>
-      <button class="dismiss-btn" on:click={() => captureError.set(null)}>×</button>
+      <button class="bg-transparent border-none text-current text-xl cursor-pointer opacity-70 hover:opacity-100" on:click={() => captureError.set(null)}>×</button>
     </div>
   {/if}
 </div>
 
 <style>
-  .controls {
-    padding: 1rem;
-    background: #1e1e1e;
-    border-bottom: 1px solid #333;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-
-  .control-group {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  label {
-    color: #ccc;
-    font-size: 0.9rem;
-  }
-
-  select {
-    padding: 0.5rem;
-    background: #2d2d2d;
-    color: #fff;
-    border: 1px solid #444;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    min-width: 200px;
-  }
-
-  select:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .button-group {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .btn {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 500;
-    transition: background 0.2s;
-  }
-
-  .btn-primary {
-    background: #007acc;
-    color: white;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    background: #005a9e;
-  }
-
-  .btn-secondary {
-    background: #3e3e3e;
-    color: white;
-  }
-
-  .btn-secondary:hover:not(:disabled) {
-    background: #4e4e4e;
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .error-alert {
-    background: #5a1a1a;
-    color: #ff6b6b;
-    padding: 0.75rem 1rem;
-    border-radius: 4px;
-    border: 1px solid #7a2a2a;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    flex: 1;
-    max-width: 500px;
-  }
-
-  .error-alert.success {
-    background: #1a5a1a;
-    color: #6bff6b;
-    border-color: #2a7a2a;
-  }
-
-  .dismiss-btn {
-    background: transparent;
-    border: none;
-    color: #ff6b6b;
-    font-size: 1.5rem;
-    cursor: pointer;
-    padding: 0;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-  }
-
-  .error-alert.success .dismiss-btn {
-    color: #6bff6b;
-  }
-
-  .dismiss-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 50%;
-  }
-
-  .stats {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .packet-count {
-    color: #ccc;
-    font-size: 0.9rem;
-    padding: 0.5rem 1rem;
-    background: #2d2d2d;
-    border-radius: 4px;
-    border: 1px solid #444;
-  }
-
-  .packet-count strong {
-    color: #4ec9b0;
-    font-weight: 600;
-  }
-
-  .filter-group {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex: 1;
-    max-width: 400px;
-  }
-
-  .filter-group label {
-    color: #ccc;
-    font-size: 0.9rem;
-    white-space: nowrap;
-  }
-
-  .filter-input {
-    flex: 1;
-    padding: 0.5rem;
-    background: #2d2d2d;
-    color: #fff;
-    border: 1px solid #444;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    font-family: 'Courier New', monospace;
-  }
-
-  .filter-input:focus {
-    outline: none;
-    border-color: #007acc;
-  }
-
-  .filter-input::placeholder {
-    color: #666;
-  }
-
-  .clear-filter-btn {
-    background: transparent;
-    border: none;
-    color: #ccc;
-    font-size: 1.2rem;
-    cursor: pointer;
-    padding: 0.25rem 0.5rem;
-    line-height: 1;
-    border-radius: 4px;
-    transition: background 0.2s;
-  }
-
-  .clear-filter-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
   }
 </style>

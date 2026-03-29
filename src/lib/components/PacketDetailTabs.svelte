@@ -6,26 +6,24 @@
   let activeTab: 'detail' | 'hex' = 'detail';
 </script>
 
-<div class="detail-container">
+<div class="flex flex-col h-full bg-[#1e1e1e]">
   {#if $selectedPacket}
-    <div class="tabs">
+    <div class="flex bg-[#252526] border-b border-[#3e3e3e]">
       <button 
-        class="tab-btn"
-        class:active={activeTab === 'detail'}
+        class="px-6 py-3 bg-transparent border-none text-[#ccc] cursor-pointer text-sm border-b-2 border-transparent transition-all duration-200 hover:bg-[#2d2d2d] hover:text-white {activeTab === 'detail' ? '!text-[#4ec9b0] !border-[#4ec9b0] !bg-[#1e1e1e]' : ''}"
         on:click={() => activeTab = 'detail'}
       >
         Protocol Tree
       </button>
       <button 
-        class="tab-btn"
-        class:active={activeTab === 'hex'}
+        class="px-6 py-3 bg-transparent border-none text-[#ccc] cursor-pointer text-sm border-b-2 border-transparent transition-all duration-200 hover:bg-[#2d2d2d] hover:text-white {activeTab === 'hex' ? '!text-[#4ec9b0] !border-[#4ec9b0] !bg-[#1e1e1e]' : ''}"
         on:click={() => activeTab = 'hex'}
       >
         Hex View
       </button>
     </div>
 
-    <div class="tab-content">
+    <div class="flex-1 overflow-auto">
       {#if activeTab === 'detail'}
         <ProtocolTree layers={$selectedPacket.layers} />
       {:else}
@@ -33,57 +31,8 @@
       {/if}
     </div>
   {:else}
-    <div class="empty-state">
+    <div class="p-8 text-center text-[#888] italic">
       No packet selected. Click on a packet in the list above to view details.
     </div>
   {/if}
 </div>
-
-<style>
-  .detail-container {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    background: #1e1e1e;
-  }
-
-  .tabs {
-    display: flex;
-    background: #252526;
-    border-bottom: 1px solid #3e3e3e;
-  }
-
-  .tab-btn {
-    padding: 0.75rem 1.5rem;
-    background: transparent;
-    border: none;
-    color: #ccc;
-    cursor: pointer;
-    font-size: 0.9rem;
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-  }
-
-  .tab-btn:hover {
-    background: #2d2d2d;
-    color: #fff;
-  }
-
-  .tab-btn.active {
-    color: #4ec9b0;
-    border-bottom-color: #4ec9b0;
-    background: #1e1e1e;
-  }
-
-  .tab-content {
-    flex: 1;
-    overflow: auto;
-  }
-
-  .empty-state {
-    padding: 2rem;
-    text-align: center;
-    color: #888;
-    font-style: italic;
-  }
-</style>

@@ -1,5 +1,5 @@
-import { writable, derived } from 'svelte/store';
-import { calculateStatistics, type Statistics } from './utils/statistics';
+import { writable, derived, get } from 'svelte/store';
+import { updateStatistics, resetStatistics, createEmptyStatistics, type Statistics } from './utils/statistics';
 import { getFilteredPackets } from './utils/filter';
 
 export interface PacketSummary {
@@ -32,49 +32,79 @@ const MAX_FRONTEND_PACKETS = 50_000;
 const _packetListInternal = writable<PacketSummary[]>([]);
 
 export const packetList = derived(_packetListInternal, ($list) => $list);
-
-// Helper to add packets with limit
-export function addPackets(newPackets: PacketSummary[]) {
-    if (!newPackets || newPackets.length === 0) {
-        return; // Early return for empty batches
-    }
-    
-    _packetListInternal.update(list => {
-        const updated = [...list, ...newPackets];
-        // Keep only the most recent packets if over limit
-        // Handle case where newPackets itself exceeds the limit
-        if (updated.length > MAX_FRONTEND_PACKETS) {
-            return updated.slice(-MAX_FRONTEND_PACKETS);
-        }
-        return updated;
-    });
-}
-
-// Helper to set packet list (for clear operation)
-export function setPacketList(packets: PacketSummary[]) {
-    // Ensure we don't exceed the limit even when setting directly
-    const limited = packets.length > MAX_FRONTEND_PACKETS 
-        ? packets.slice(-MAX_FRONTEND_PACKETS)
-        : packets;
-    _packetListInternal.set(limited);
-}
-
-export const selectedPacket = writable<PacketDetail | null>(null);
-export const captureError = writable<string | null>(null);
+export const statistics = writable<Statistics>(createEmptyStatistics());
+export const filteredPackets = writable<PacketSummary[]>([]);
 
 // Filter store with debouncing
 export const displayFilter = writable<string>('');
 const _debouncedFilterInternal = writable<string>('');
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-let debounceUnsubscribe: (() => void) | null = null;
+
+// Handle filter changes efficiently
+let currentFilter = '';
+let currentPackets: PacketSummary[] = [];
+
+_debouncedFilterInternal.subscribe(filter => {
+    currentFilter = filter;
+    filteredPackets.set(getFilteredPackets(currentPackets, filter));
+});
+
+// Helper to add packets with limit
+export function addPackets(newPackets: PacketSummary[]) {
+    if (!newPackets || newPackets.length === 0) {
+        return;
+    }
+    
+    _packetListInternal.update(list => {
+        const updated = [...list, ...newPackets];
+        if (updated.length > MAX_FRONTEND_PACKETS) {
+            currentPackets = updated.slice(-MAX_FRONTEND_PACKETS);
+        } else {
+            currentPackets = updated;
+        }
+        return currentPackets;
+    });
+
+    // Update filtered packets incrementally
+    const matchingNew = getFilteredPackets(newPackets, currentFilter);
+    if (matchingNew.length > 0 || currentFilter === '') {
+        filteredPackets.update(list => {
+            const updated = [...list, ...matchingNew];
+            if (updated.length > MAX_FRONTEND_PACKETS) {
+                return updated.slice(-MAX_FRONTEND_PACKETS);
+            }
+            return updated;
+        });
+    }
+
+    // Update statistics incrementally
+    statistics.update(s => updateStatistics(s, newPackets));
+}
+
+// Helper to set packet list (for clear operation)
+export function setPacketList(packets: PacketSummary[]) {
+    const limited = packets.length > MAX_FRONTEND_PACKETS 
+        ? packets.slice(-MAX_FRONTEND_PACKETS)
+        : packets;
+    currentPackets = limited;
+    _packetListInternal.set(limited);
+    filteredPackets.set(getFilteredPackets(limited, currentFilter));
+    
+    // Reset stats if clearing
+    if (packets.length === 0) {
+        resetStatistics();
+        statistics.set(createEmptyStatistics());
+    }
+}
+
+export const selectedPacket = writable<PacketDetail | null>(null);
+export const captureError = writable<string | null>(null);
 
 // Initialize debounced filter with current filter value
 _debouncedFilterInternal.set('');
 
 // Update debounced filter when displayFilter changes
-// Note: This subscription persists for the app lifetime, which is acceptable
-// The cleanup on beforeunload is a safety measure
-debounceUnsubscribe = displayFilter.subscribe(filter => {
+let debounceUnsubscribe = displayFilter.subscribe(filter => {
     if (debounceTimer) {
         clearTimeout(debounceTimer);
         debounceTimer = null;
@@ -85,7 +115,7 @@ debounceUnsubscribe = displayFilter.subscribe(filter => {
     }, 200); // 200ms debounce
 });
 
-// Cleanup function (called when page unloads)
+// Cleanup function
 if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', () => {
         if (debounceTimer) {
@@ -94,21 +124,8 @@ if (typeof window !== 'undefined') {
         }
         if (debounceUnsubscribe) {
             debounceUnsubscribe();
-            debounceUnsubscribe = null;
         }
     });
 }
 
 export const debouncedFilter = derived(_debouncedFilterInternal, ($filter) => $filter);
-
-// Memoized statistics - only recalculates when packetList changes
-export const statistics = derived(packetList, ($packetList) => 
-    calculateStatistics($packetList)
-);
-
-// Memoized filtered packets - only recalculates when packetList or filter changes
-export const filteredPackets = derived(
-    [packetList, debouncedFilter],
-    ([$packetList, $debouncedFilter]) => 
-        getFilteredPackets($packetList, $debouncedFilter)
-);

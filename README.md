@@ -1,9 +1,10 @@
 # AuraCap Network Analyzer
 
-A modern, cross-platform network packet analyzer built with Tauri, SvelteKit, and Rust. AuraCap provides real-time packet capture, analysis, and visualization capabilities with an intuitive graphical interface.
+[![CI](https://github.com/pallab-js/r-wire/actions/workflows/ci.yml/badge.svg)](https://github.com/pallab-js/r-wire/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#)
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
+A modern, cross-platform network packet analyzer built with **Tauri**, **SvelteKit 5**, and **Rust**. AuraCap provides real-time packet capture, analysis, and visualization capabilities with an intuitive graphical interface.
 
 ## Features
 
@@ -119,23 +120,32 @@ r-wire/
 
 ## Technology Stack
 
-- **Frontend**: SvelteKit 2.x, TypeScript, Vite
+- **Frontend**: SvelteKit 5.x, TypeScript, Vite 6.x
 - **Backend**: Rust, Tauri 1.5
-- **Networking**: pcap, pnet
-- **Concurrency**: Tokio
-- **Logging**: env_logger
-- **Testing**: Built-in Rust test framework
+- **Networking**: `pcap`, `pnet`
+- **Concurrency**: `tokio`
+- **Logging**: `env_logger`
+- **Testing**: Vitest (Frontend), Cargo Test (Backend)
 
 ## Testing
 
-Run the test suites:
+Run the test suites to ensure code quality:
 
 ```bash
-# Run Rust tests
+# Run Frontend unit tests (Vitest)
+npm run test:unit
+
+# Run Frontend type checking (Svelte-check)
+npm run check
+
+# Run Backend unit tests (Cargo)
 cd src-tauri && cargo test
 
-# Run TypeScript type checking
-npm run check
+# Run Rust formatting check
+cd src-tauri && cargo fmt -- --check
+
+# Run Rust linting (Clippy)
+cd src-tauri && cargo clippy -- -D warnings
 ```
 
 ## Contributing

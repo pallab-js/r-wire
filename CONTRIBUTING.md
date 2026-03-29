@@ -45,13 +45,19 @@ Thank you for your interest in contributing to AuraCap! This document provides g
    - Add comments for complex logic
    - Update documentation as needed
 
-4. **Test your changes**:
+4. **Test and Lint your changes**:
    ```bash
+   npm run lint         # Check formatting and linting
    npm run check        # Type checking
-   npm run tauri dev    # Test in development
+   npm run test:unit    # Run frontend unit tests
+   cd src-tauri && cargo test # Run backend tests
    ```
 
-5. **Commit your changes**:
+5. **CI Workflow**:
+   - Every Pull Request triggers a CI workflow that runs linting, type checking, and tests.
+   - Ensure all checks pass before requesting a review.
+
+6. **Commit your changes**:
    - Use clear, descriptive commit messages
    - Follow conventional commit format when possible:
      - `feat: add new feature`
@@ -60,12 +66,12 @@ Thank you for your interest in contributing to AuraCap! This document provides g
      - `refactor: improve code structure`
      - `test: add tests`
 
-6. **Push to your fork**:
+7. **Push to your fork**:
    ```bash
    git push origin feature/your-feature-name
    ```
 
-7. **Open a Pull Request**:
+8. **Open a Pull Request**:
    - Provide a clear description of changes
    - Reference any related issues
    - Include screenshots for UI changes

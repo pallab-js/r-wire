@@ -1,16 +1,16 @@
 use crate::dissector;
-use crate::model::{PacketSummary, CachedPacket};
+use crate::model::PacketSummary;
 use std::sync::{Arc, Mutex, mpsc as std_mpsc};
-use std::collections::BTreeMap;
 use tokio::sync::mpsc as tokio_mpsc;
 use tokio::time::Instant;
 use tauri::Manager;
+use rusqlite::Connection;
 
 pub async fn run_capture(
     app_handle: tauri::AppHandle,
     interface_name: String,
     mut stop_rx: tokio_mpsc::Receiver<()>,
-    packet_cache: Arc<Mutex<BTreeMap<u64, CachedPacket>>>,
+    db_conn: Arc<Mutex<Connection>>,
 ) -> Result<(), String> {
     log::info!("Starting packet capture on interface: {}", interface_name);
 
@@ -43,8 +43,6 @@ pub async fn run_capture(
 
     log::info!("Successfully opened capture device: {}", interface_name);
 
-    // Create a channel for packets from the blocking thread (use std::sync::mpsc)
-    // Send (packet_id, packet_data, timestamp_ns)
     let (packet_tx, packet_rx) = std_mpsc::channel::<(u64, Vec<u8>, i64)>();
     
     // Spawn blocking thread for packet capture
@@ -57,20 +55,13 @@ pub async fn run_capture(
                 Ok(packet) => {
                     id_counter += 1;
                     let data = packet.data.to_vec();
-                    // Extract timestamp from packet header
-                    // pcap header has tv_sec (seconds) and tv_usec (microseconds)
                     let timestamp_ns = packet.header.ts.tv_sec * 1_000_000_000
                         + (packet.header.ts.tv_usec as i64) * 1_000_000;
-                    // Send packet with timestamp (blocking, but that's ok in this thread)
                     if packet_tx.send((id_counter, data, timestamp_ns)).is_err() {
-                        // Receiver dropped, stop capturing
                         break;
                     }
                 }
-                Err(pcap::Error::TimeoutExpired) => {
-                    // Timeout is normal, continue
-                    continue;
-                }
+                Err(pcap::Error::TimeoutExpired) => continue,
                 Err(e) => {
                     eprintln!("Packet capture error: {}", e);
                     break;
@@ -80,80 +71,81 @@ pub async fn run_capture(
     });
 
     let mut batch: Vec<PacketSummary> = Vec::new();
+    let mut db_batch: Vec<(u64, Vec<u8>, i64)> = Vec::new();
     let mut last_emit = Instant::now();
     const BATCH_SIZE: usize = 50;
+    const DB_BATCH_SIZE: usize = 200;
     const BATCH_TIMEOUT_MS: u64 = 250;
+
+    let insert_packets = |db: &mut Connection, packets: &Vec<(u64, Vec<u8>, i64)>| {
+        if packets.is_empty() { return; }
+        if let Ok(tx) = db.transaction() {
+            {
+                let mut stmt = tx.prepare_cached("INSERT INTO packets (id, timestamp_ns, data) VALUES (?1, ?2, ?3)").unwrap();
+                for (id, data, ts) in packets {
+                    let id_i64 = *id as i64;
+                    let _ = stmt.execute(rusqlite::params![id_i64, ts, data]);
+                }
+            }
+            let _ = tx.commit();
+        }
+    };
 
     loop {
         tokio::select! {
-            // Check for stop signal
             _ = stop_rx.recv() => {
-                // Emit any remaining packets in the batch before stopping
-                if !batch.is_empty() {
-                    if let Err(e) = app_handle.emit_all("new_packet_batch", &batch) {
-                        eprintln!("Failed to emit final batch: {}", e);
+                if !db_batch.is_empty() {
+                    if let Ok(mut db) = db_conn.lock() {
+                        insert_packets(&mut db, &db_batch);
                     }
+                }
+                if !batch.is_empty() {
+                    let _ = app_handle.emit_all("new_packet_batch", &batch);
                     batch.clear();
                 }
                 break;
             }
-            // Receive packets with timeout to allow checking stop signal
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(10)) => {
-                // Try to receive packets (non-blocking)
                 loop {
                     match packet_rx.try_recv() {
                         Ok((packet_id, packet_data, timestamp_ns)) => {
-                            // Parse the packet summary with actual timestamp
                             if let Some(summary) = dissector::parse_summary(&packet_data, packet_id, timestamp_ns) {
-                                // Store the full raw packet in cache with timestamp
-                                {
-                                    if let Ok(mut cache) = packet_cache.lock() {
-                                        cache.insert(packet_id, CachedPacket {
-                                            data: packet_data,
-                                            timestamp_ns,
-                                        });
-                                        
-                                        // Limit cache size to prevent unbounded memory growth
-                                        // BTreeMap maintains sorted order, so we can efficiently remove oldest
-                                        const MAX_CACHE_SIZE: usize = 100_000;
-                                        if cache.len() > MAX_CACHE_SIZE {
-                                            // Remove oldest packets (lowest IDs) - O(k log n) where k is items to remove
-                                            let to_remove = cache.len() - MAX_CACHE_SIZE;
-                                            let keys_to_remove: Vec<u64> = cache.keys().take(to_remove).cloned().collect();
-                                            for key in keys_to_remove {
-                                                cache.remove(&key);
-                                            }
-                                        }
-                                    } else {
-                                        eprintln!("Failed to lock packet cache for insertion");
-                                    }
-                                }
-                                
-                                // Add to batch
+                                db_batch.push((packet_id, packet_data, timestamp_ns));
                                 batch.push(summary);
                             }
                         }
-                        Err(std_mpsc::TryRecvError::Empty) => {
-                            // No more packets available right now
-                            break;
-                        }
+                        Err(std_mpsc::TryRecvError::Empty) => break,
                         Err(std_mpsc::TryRecvError::Disconnected) => {
-                            // Channel closed, capture thread ended
-                            if !batch.is_empty() {
-                                if let Err(e) = app_handle.emit_all("new_packet_batch", &batch) {
-                                    eprintln!("Failed to emit batch on disconnect: {}", e);
+                            if !db_batch.is_empty() {
+                                if let Ok(mut db) = db_conn.lock() {
+                                    insert_packets(&mut db, &db_batch);
                                 }
+                            }
+                            if !batch.is_empty() {
+                                let _ = app_handle.emit_all("new_packet_batch", &batch);
                             }
                             return Ok(());
                         }
                     }
                 }
 
-                // Check if we should emit the batch
+                if db_batch.len() >= DB_BATCH_SIZE {
+                    if let Ok(mut db) = db_conn.lock() {
+                        insert_packets(&mut db, &db_batch);
+                        db_batch.clear();
+                    }
+                }
+
                 let should_emit = batch.len() >= BATCH_SIZE || 
                     last_emit.elapsed().as_millis() >= BATCH_TIMEOUT_MS as u128;
                 
                 if should_emit && !batch.is_empty() {
+                    if !db_batch.is_empty() {
+                        if let Ok(mut db) = db_conn.lock() {
+                            insert_packets(&mut db, &db_batch);
+                            db_batch.clear();
+                        }
+                    }
                     if let Err(e) = app_handle.emit_all("new_packet_batch", &batch) {
                         eprintln!("Failed to emit batch: {}", e);
                     }
@@ -164,8 +156,6 @@ pub async fn run_capture(
         }
     }
 
-    // Wait for capture thread to finish (it will when we break above)
     let _ = cap_handle.join();
-
     Ok(())
 }

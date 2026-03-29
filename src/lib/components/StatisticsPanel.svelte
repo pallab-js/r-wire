@@ -1,7 +1,30 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { statistics } from '../stores';
+  import {
+    Chart,
+    LineController,
+    LineElement,
+    PointElement,
+    LinearScale,
+    CategoryScale,
+    DoughnutController,
+    ArcElement,
+    Tooltip,
+    Legend,
+    Filler
+  } from 'chart.js';
 
-  // Use memoized statistics store instead of recalculating
+  Chart.register(
+    LineController, LineElement, PointElement, LinearScale, CategoryScale,
+    DoughnutController, ArcElement, Tooltip, Legend, Filler
+  );
+
+  let timeChartCanvas: HTMLCanvasElement;
+  let protocolChartCanvas: HTMLCanvasElement;
+  let timeChart: Chart | null = null;
+  let protocolChart: Chart | null = null;
+
   $: stats = $statistics;
 
   function formatBytes(bytes: number): string {
@@ -10,74 +33,170 @@
     if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   }
+
+  // Reactive updates to charts
+  $: if (timeChart && stats.timeSeries) {
+    const labels = stats.timeSeries.map(d => {
+      const date = new Date(d.timestamp * 1000);
+      return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
+    });
+    const packets = stats.timeSeries.map(d => d.packets);
+    const bytes = stats.timeSeries.map(d => d.bytes);
+
+    timeChart.data.labels = labels;
+    timeChart.data.datasets[0].data = packets;
+    timeChart.data.datasets[1].data = bytes;
+    timeChart.update('none'); // Update without animation for performance
+  }
+
+  $: if (protocolChart && stats.protocols) {
+    protocolChart.data.labels = stats.protocols.map(p => p.protocol);
+    protocolChart.data.datasets[0].data = stats.protocols.map(p => p.count);
+    protocolChart.update('none');
+  }
+
+  onMount(() => {
+    const commonOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 0 }, // Disable animation for real-time updates
+      color: '#d4d4d4',
+      plugins: {
+        legend: { labels: { color: '#ccc' } }
+      }
+    };
+
+    if (timeChartCanvas) {
+      timeChart = new Chart(timeChartCanvas, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Packets/s',
+              data: [],
+              borderColor: '#4ec9b0',
+              backgroundColor: 'rgba(78, 201, 176, 0.1)',
+              yAxisID: 'y',
+              fill: true,
+              tension: 0.2,
+              pointRadius: 0
+            },
+            {
+              label: 'Bytes/s',
+              data: [],
+              borderColor: '#4a9eff',
+              backgroundColor: 'rgba(74, 158, 255, 0.1)',
+              yAxisID: 'y1',
+              fill: true,
+              tension: 0.2,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          ...commonOptions,
+          scales: {
+            x: { ticks: { color: '#888' }, grid: { color: '#333' } },
+            y: { 
+              type: 'linear', display: true, position: 'left',
+              ticks: { color: '#4ec9b0' }, grid: { color: '#333' }
+            },
+            y1: { 
+              type: 'linear', display: true, position: 'right',
+              ticks: { color: '#4a9eff' }, grid: { drawOnChartArea: false }
+            }
+          }
+        }
+      });
+    }
+
+    const colors = ['#4a9eff', '#ffa500', '#00ff00', '#ff6b6b', '#9b59b6', '#3498db', '#f1c40f', '#e74c3c'];
+    
+    if (protocolChartCanvas) {
+      protocolChart = new Chart(protocolChartCanvas, {
+        type: 'doughnut',
+        data: {
+          labels: [],
+          datasets: [{
+            data: [],
+            backgroundColor: colors,
+            borderColor: '#1e1e1e',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          ...commonOptions,
+          cutout: '70%',
+          plugins: {
+            legend: { position: 'right', labels: { color: '#ccc', boxWidth: 12 } }
+          }
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (timeChart) timeChart.destroy();
+    if (protocolChart) protocolChart.destroy();
+  });
 </script>
 
-<div class="statistics-panel">
-  <h3>Capture Statistics</h3>
-
+<div class="p-4 bg-[#1e1e1e] text-[#d4d4d4] h-full overflow-y-auto box-border">
   {#if stats.totalPackets === 0}
-    <div class="empty-stats">
+    <div class="text-center text-[#888] p-8 italic">
       No packets captured yet.
     </div>
   {:else}
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">Total Packets</div>
-        <div class="stat-value">{stats.totalPackets.toLocaleString()}</div>
+    <div class="grid grid-cols-3 gap-4 mb-6">
+      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] shadow-sm">
+        <div class="text-[0.85rem] text-[#888] mb-2 uppercase tracking-wide">Total Packets</div>
+        <div class="text-[1.8rem] font-semibold text-[#4ec9b0]">{stats.totalPackets.toLocaleString()}</div>
       </div>
-
-      <div class="stat-card">
-        <div class="stat-label">Total Bytes</div>
-        <div class="stat-value">{formatBytes(stats.totalBytes)}</div>
+      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] shadow-sm">
+        <div class="text-[0.85rem] text-[#888] mb-2 uppercase tracking-wide">Total Bytes</div>
+        <div class="text-[1.8rem] font-semibold text-[#4ec9b0]">{formatBytes(stats.totalBytes)}</div>
       </div>
-
-      <div class="stat-card">
-        <div class="stat-label">Avg Packet Size</div>
-        <div class="stat-value">{stats.averagePacketSize > 0 ? Math.round(stats.averagePacketSize) : 0} bytes</div>
+      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] shadow-sm">
+        <div class="text-[0.85rem] text-[#888] mb-2 uppercase tracking-wide">Avg Packet Size</div>
+        <div class="text-[1.8rem] font-semibold text-[#4ec9b0]">{stats.averagePacketSize > 0 ? Math.round(stats.averagePacketSize) : 0} bytes</div>
       </div>
     </div>
 
-    <div class="protocol-section">
-      <h4>Protocol Distribution</h4>
-      <div class="protocol-list">
-        {#each stats.protocols as protocol}
-          <div class="protocol-item">
-            <div class="protocol-header">
-              <span class="protocol-name">{protocol.protocol}</span>
-              <span class="protocol-count">{protocol.count} ({protocol.percentage.toFixed(1)}%)</span>
-            </div>
-            <div class="protocol-bar">
-              <div 
-                class="protocol-bar-fill" 
-                style="width: {protocol.percentage}%"
-              ></div>
-            </div>
-            <div class="protocol-bytes">{formatBytes(protocol.totalBytes)}</div>
-          </div>
-        {/each}
+    <div class="grid grid-cols-[2fr_1fr] grid-rows-[auto_auto] gap-4">
+      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] flex flex-col col-start-1 col-end-2 row-start-1 row-end-2 min-h-[300px]">
+        <h4 class="m-0 mb-4 text-[#dcdcaa] text-base font-semibold">Traffic Rate (Last 60s)</h4>
+        <div class="flex-1 relative min-h-0">
+          <canvas bind:this={timeChartCanvas}></canvas>
+        </div>
       </div>
-    </div>
+      
+      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] flex flex-col col-start-2 col-end-3 row-start-1 row-end-2 min-h-[300px]">
+        <h4 class="m-0 mb-4 text-[#dcdcaa] text-base font-semibold">Protocols</h4>
+        <div class="flex-1 relative min-h-0">
+          <canvas bind:this={protocolChartCanvas}></canvas>
+        </div>
+      </div>
 
-    <div class="top-talkers">
-      <div class="talker-column">
-        <h4>Top Sources</h4>
-        <div class="talker-list">
+      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] row-start-2 row-end-3">
+        <h4 class="m-0 mb-4 text-[#dcdcaa] text-base font-semibold">Top Sources</h4>
+        <div class="flex flex-col gap-2">
           {#each stats.topSources as talker}
-            <div class="talker-item">
-              <span class="talker-address">{talker.address}</span>
-              <span class="talker-count">{talker.count}</span>
+            <div class="flex justify-between px-3 py-2 bg-[#1e1e1e] rounded border border-[#333] text-[0.85rem]">
+              <span class="text-[#4ec9b0] font-mono">{talker.address}</span>
+              <span class="text-[#dcdcaa] font-semibold">{talker.count}</span>
             </div>
           {/each}
         </div>
       </div>
 
-      <div class="talker-column">
-        <h4>Top Destinations</h4>
-        <div class="talker-list">
+      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] row-start-2 row-end-3">
+        <h4 class="m-0 mb-4 text-[#dcdcaa] text-base font-semibold">Top Destinations</h4>
+        <div class="flex flex-col gap-2">
           {#each stats.topDestinations as talker}
-            <div class="talker-item">
-              <span class="talker-address">{talker.address}</span>
-              <span class="talker-count">{talker.count}</span>
+            <div class="flex justify-between px-3 py-2 bg-[#1e1e1e] rounded border border-[#333] text-[0.85rem]">
+              <span class="text-[#4ec9b0] font-mono">{talker.address}</span>
+              <span class="text-[#dcdcaa] font-semibold">{talker.count}</span>
             </div>
           {/each}
         </div>
@@ -85,142 +204,3 @@
     </div>
   {/if}
 </div>
-
-<style>
-  .statistics-panel {
-    padding: 1rem;
-    background: #1e1e1e;
-    color: #d4d4d4;
-    height: 100%;
-    overflow-y: auto;
-  }
-
-  h3 {
-    margin: 0 0 1rem 0;
-    color: #4ec9b0;
-    font-size: 1.2rem;
-  }
-
-  h4 {
-    margin: 1rem 0 0.5rem 0;
-    color: #dcdcaa;
-    font-size: 1rem;
-  }
-
-  .empty-stats {
-    text-align: center;
-    color: #888;
-    padding: 2rem;
-    font-style: italic;
-  }
-
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .stat-card {
-    background: #252526;
-    padding: 1rem;
-    border-radius: 4px;
-    border: 1px solid #3e3e3e;
-  }
-
-  .stat-label {
-    font-size: 0.85rem;
-    color: #888;
-    margin-bottom: 0.5rem;
-  }
-
-  .stat-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #4ec9b0;
-  }
-
-  .protocol-section {
-    margin-bottom: 1.5rem;
-  }
-
-  .protocol-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .protocol-item {
-    background: #252526;
-    padding: 0.75rem;
-    border-radius: 4px;
-    border: 1px solid #3e3e3e;
-  }
-
-  .protocol-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.5rem;
-    font-size: 0.9rem;
-  }
-
-  .protocol-name {
-    color: #dcdcaa;
-    font-weight: 600;
-  }
-
-  .protocol-count {
-    color: #888;
-  }
-
-  .protocol-bar {
-    height: 6px;
-    background: #1e1e1e;
-    border-radius: 3px;
-    overflow: hidden;
-    margin-bottom: 0.25rem;
-  }
-
-  .protocol-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #4a9eff, #007acc);
-    transition: width 0.3s ease;
-  }
-
-  .protocol-bytes {
-    font-size: 0.8rem;
-    color: #888;
-  }
-
-  .top-talkers {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
-
-  .talker-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .talker-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.5rem;
-    background: #252526;
-    border-radius: 4px;
-    border: 1px solid #3e3e3e;
-    font-size: 0.85rem;
-  }
-
-  .talker-address {
-    color: #4ec9b0;
-    font-family: 'Courier New', monospace;
-  }
-
-  .talker-count {
-    color: #dcdcaa;
-    font-weight: 600;
-  }
-</style>

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Lint Frontend
+        run: npm run lint
+
+      - name: Check Svelte
+        run: npm run check
+
+      - name: Run Frontend Tests
+        run: npm run test:unit
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Check Rust Format
+        run: cd src-tauri && cargo fmt -- --check
+
+      - name: Clippy
+        run: cd src-tauri && cargo clippy -- -D warnings
+
+      - name: Run Rust Tests
+        run: cd src-tauri && cargo test

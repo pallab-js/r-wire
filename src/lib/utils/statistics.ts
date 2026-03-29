@@ -7,6 +7,12 @@ export interface ProtocolStats {
   totalBytes: number;
 }
 
+export interface TimeSeriesData {
+  timestamp: number;
+  packets: number;
+  bytes: number;
+}
+
 export interface Statistics {
   totalPackets: number;
   totalBytes: number;
@@ -14,27 +20,43 @@ export interface Statistics {
   topSources: Array<{ address: string; count: number }>;
   topDestinations: Array<{ address: string; count: number }>;
   averagePacketSize: number;
+  timeSeries: TimeSeriesData[];
 }
 
-export function calculateStatistics(packets: PacketSummary[]): Statistics {
-  if (packets.length === 0) {
-    return {
-      totalPackets: 0,
-      totalBytes: 0,
-      protocols: [],
-      topSources: [],
-      topDestinations: [],
-      averagePacketSize: 0,
-    };
+export function createEmptyStatistics(): Statistics {
+  return {
+    totalPackets: 0,
+    totalBytes: 0,
+    protocols: [],
+    topSources: [],
+    topDestinations: [],
+    averagePacketSize: 0,
+    timeSeries: [],
+  };
+}
+
+// Internal state for incremental counting
+let protocolMap = new Map<string, { count: number; bytes: number }>();
+let sourceMap = new Map<string, number>();
+let destMap = new Map<string, number>();
+let timeSeriesMap = new Map<number, TimeSeriesData>();
+
+export function resetStatistics() {
+  protocolMap.clear();
+  sourceMap.clear();
+  destMap.clear();
+  timeSeriesMap.clear();
+}
+
+export function updateStatistics(current: Statistics, newPackets: PacketSummary[]): Statistics {
+  if (newPackets.length === 0) {
+    return current;
   }
 
-  // Protocol statistics
-  const protocolMap = new Map<string, { count: number; bytes: number }>();
-  const sourceMap = new Map<string, number>();
-  const destMap = new Map<string, number>();
-  let totalBytes = 0;
+  let totalBytes = current.totalBytes;
+  let totalPackets = current.totalPackets + newPackets.length;
 
-  for (const packet of packets) {
+  for (const packet of newPackets) {
     // Protocol stats
     const proto = packet.protocol;
     const entry = protocolMap.get(proto) || { count: 0, bytes: 0 };
@@ -51,36 +73,53 @@ export function calculateStatistics(packets: PacketSummary[]): Statistics {
     destMap.set(packet.dest_addr, dstCount + 1);
 
     totalBytes += packet.length;
+
+    // Time series (bucket by second)
+    const timeSec = Math.floor(packet.timestamp / 1_000_000_000); 
+    const tsEntry = timeSeriesMap.get(timeSec) || { timestamp: timeSec, packets: 0, bytes: 0 };
+    tsEntry.packets += 1;
+    tsEntry.bytes += packet.length;
+    timeSeriesMap.set(timeSec, tsEntry);
   }
 
-  // Convert protocol map to array and calculate percentages
+  // Convert maps to arrays and calculate percentages
   const protocols: ProtocolStats[] = Array.from(protocolMap.entries())
     .map(([protocol, data]) => ({
       protocol,
       count: data.count,
-      percentage: (data.count / packets.length) * 100,
+      percentage: (data.count / totalPackets) * 100,
       totalBytes: data.bytes,
     }))
     .sort((a, b) => b.count - a.count);
 
-  // Top sources
   const topSources = Array.from(sourceMap.entries())
     .map(([address, count]) => ({ address, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  // Top destinations
   const topDestinations = Array.from(destMap.entries())
     .map(([address, count]) => ({ address, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
+  // Keep last 60 seconds for time series to avoid infinite memory growth
+  const sortedTimes = Array.from(timeSeriesMap.keys()).sort((a, b) => a - b);
+  if (sortedTimes.length > 60) {
+    const keysToRemove = sortedTimes.slice(0, sortedTimes.length - 60);
+    for (const key of keysToRemove) {
+      timeSeriesMap.delete(key);
+    }
+  }
+
+  const timeSeries = Array.from(timeSeriesMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+
   return {
-    totalPackets: packets.length,
+    totalPackets,
     totalBytes,
     protocols,
     topSources,
     topDestinations,
-    averagePacketSize: packets.length > 0 ? totalBytes / packets.length : 0,
+    averagePacketSize: totalPackets > 0 ? totalBytes / totalPackets : 0,
+    timeSeries,
   };
 }

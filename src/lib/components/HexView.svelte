@@ -28,109 +28,35 @@
   $: rows = chunkArray(safeBytes, bytesPerLine);
 </script>
 
-<div class="hex-view">
-  <div class="hex-header">
-    <span class="offset-header">Offset</span>
-    <span class="hex-header-text">Hex</span>
-    <span class="ascii-header">ASCII</span>
+<div class="p-2 font-mono text-[0.85rem] bg-[#1e1e1e] text-[#d4d4d4]">
+  <div class="grid grid-cols-[80px_1fr_200px] gap-4 p-2 bg-[#252526] border-b-2 border-[#3e3e3e] font-semibold text-[#ccc]">
+    <span class="select-none">Offset</span>
+    <span>Hex</span>
+    <span>ASCII</span>
   </div>
-  <div class="hex-content">
+  <div class="overflow-y-auto max-h-full">
     {#each rows as row, rowIndex}
-      <div class="hex-line">
-        <span class="offset">{((rowIndex * bytesPerLine).toString(16).padStart(8, '0').toUpperCase())}</span>
-        <span class="hex-bytes">
+      <div class="grid grid-cols-[80px_1fr_200px] gap-4 px-2 py-1 border-b border-[#2d2d2d] hover:bg-[#2a2a2a]">
+        <span class="text-[#858585] select-none">{((rowIndex * bytesPerLine).toString(16).padStart(8, '0').toUpperCase())}</span>
+        <span class="flex gap-1 flex-wrap">
           {#each row as byte, byteIndex}
-            <span class="hex-byte">{formatHex(byte)}</span>
+            <span class="text-[#4ec9b0] min-w-[2ch] text-center">{formatHex(byte)}</span>
             {#if (byteIndex + 1) % 8 === 0 && byteIndex < row.length - 1}
-              <span class="hex-separator"> </span>
+              <span class="mx-1"> </span>
             {/if}
           {/each}
           {#if row.length < bytesPerLine}
             {#each Array(bytesPerLine - row.length) as _}
-              <span class="hex-byte empty">  </span>
+              <span class="text-transparent min-w-[2ch] text-center">  </span>
             {/each}
           {/if}
         </span>
-        <span class="ascii-bytes">
+        <span class="flex gap-0">
           {#each row as byte}
-            <span class="ascii-byte">{formatAscii(byte)}</span>
+            <span class="text-[#ce9178] min-w-[1ch] text-center">{formatAscii(byte)}</span>
           {/each}
         </span>
       </div>
     {/each}
   </div>
 </div>
-
-<style>
-  .hex-view {
-    padding: 0.5rem;
-    font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
-    background: #1e1e1e;
-    color: #d4d4d4;
-  }
-
-  .hex-header {
-    display: grid;
-    grid-template-columns: 80px 1fr 200px;
-    gap: 1rem;
-    padding: 0.5rem;
-    background: #252526;
-    border-bottom: 2px solid #3e3e3e;
-    font-weight: 600;
-    color: #ccc;
-  }
-
-  .hex-content {
-    overflow-y: auto;
-    max-height: 100%;
-  }
-
-  .hex-line {
-    display: grid;
-    grid-template-columns: 80px 1fr 200px;
-    gap: 1rem;
-    padding: 0.25rem 0.5rem;
-    border-bottom: 1px solid #2d2d2d;
-  }
-
-  .hex-line:hover {
-    background: #2a2a2a;
-  }
-
-  .offset {
-    color: #858585;
-    user-select: none;
-  }
-
-  .hex-bytes {
-    display: flex;
-    gap: 0.25rem;
-    flex-wrap: wrap;
-  }
-
-  .hex-byte {
-    color: #4ec9b0;
-    min-width: 2ch;
-    text-align: center;
-  }
-
-  .hex-byte.empty {
-    color: transparent;
-  }
-
-  .hex-separator {
-    margin: 0 0.25rem;
-  }
-
-  .ascii-bytes {
-    display: flex;
-    gap: 0;
-  }
-
-  .ascii-byte {
-    color: #ce9178;
-    min-width: 1ch;
-    text-align: center;
-  }
-</style>

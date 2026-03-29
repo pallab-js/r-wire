@@ -1,5 +1,6 @@
 <script lang="ts">
   // Root layout for SvelteKit
+  import '../app.css';
   import { onMount } from 'svelte';
   
   onMount(() => {
@@ -12,32 +13,6 @@
   });
 </script>
 
-<div class="root-wrapper">
+<div class="h-screen w-screen flex flex-col overflow-hidden bg-[#1e1e1e] text-[#d4d4d4]">
   <slot />
 </div>
-
-<style>
-  :global(html) {
-    height: 100%;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-  }
-
-  :global(body) {
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    height: 100%;
-    width: 100%;
-    background: #1e1e1e;
-    color: #d4d4d4;
-  }
-
-  .root-wrapper {
-    height: 100%;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-  }
-</style>

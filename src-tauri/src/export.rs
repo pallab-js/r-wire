@@ -1,12 +1,9 @@
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
-use crate::model::{PacketSummary, CachedPacket};
-use std::collections::BTreeMap;
+use crate::model::PacketSummary;
 
 // PCAP Global Header (24 bytes)
-// Magic number: 0xA1B2C3D4 (nanosecond timestamps) or 0xA1B2C3D4 (microsecond timestamps)
-// We'll use microsecond timestamps (0xA1B2C3D4)
 const PCAP_MAGIC: u32 = 0xA1B2C3D4;
 const PCAP_VERSION_MAJOR: u16 = 2;
 const PCAP_VERSION_MINOR: u16 = 4;
@@ -47,9 +44,8 @@ pub fn write_packet(
     Ok(())
 }
 
-pub fn export_pcap(
-    packet_cache: &BTreeMap<u64, CachedPacket>,
-    packet_list: &[PacketSummary],
+pub fn export_pcap_db(
+    packet_list: &[(PacketSummary, Vec<u8>, i64)],
     file_path: PathBuf,
 ) -> Result<(), String> {
     let mut file = File::create(&file_path)
@@ -60,18 +56,12 @@ pub fn export_pcap(
         .map_err(|e| format!("Failed to write PCAP header: {}", e))?;
 
     // Write packets in order
-    for packet in packet_list {
-        if let Some(cached) = packet_cache.get(&packet.id) {
-            // Convert nanoseconds to seconds and microseconds
-            // Handle potential overflow: u32 max is ~4.2 billion seconds (year 2106)
-            let timestamp_ns = cached.timestamp_ns;
-            let timestamp_sec = (timestamp_ns / 1_000_000_000) as u32;
-            // Ensure microseconds don't exceed 999,999
-            let timestamp_usec = ((timestamp_ns % 1_000_000_000) / 1_000).min(999_999) as u32;
+    for (summary, data, timestamp_ns) in packet_list {
+        let timestamp_sec = (timestamp_ns / 1_000_000_000) as u32;
+        let timestamp_usec = ((timestamp_ns % 1_000_000_000) / 1_000).min(999_999) as u32;
 
-            write_packet(&mut file, &cached.data, timestamp_sec, timestamp_usec)
-                .map_err(|e| format!("Failed to write packet {}: {}", packet.id, e))?;
-        }
+        write_packet(&mut file, data, timestamp_sec, timestamp_usec)
+            .map_err(|e| format!("Failed to write packet {}: {}", summary.id, e))?;
     }
 
     Ok(())
