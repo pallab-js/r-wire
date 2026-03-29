@@ -142,63 +142,67 @@
   });
 </script>
 
-<div class="p-4 bg-[#1e1e1e] text-[#d4d4d4] h-full overflow-y-auto box-border">
+<div class="p-4 bg-[#1e1e1e] text-[#d4d4d4] h-full overflow-y-auto box-border font-sans">
   {#if stats.totalPackets === 0}
-    <div class="text-center text-[#888] p-8 italic">
+    <div class="text-center text-[#888] p-8 italic flex h-full items-center justify-center">
       No packets captured yet.
     </div>
   {:else}
-    <div class="grid grid-cols-3 gap-4 mb-6">
-      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] shadow-sm">
-        <div class="text-[0.85rem] text-[#888] mb-2 uppercase tracking-wide">Total Packets</div>
-        <div class="text-[1.8rem] font-semibold text-[#4ec9b0]">{stats.totalPackets.toLocaleString()}</div>
-      </div>
-      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] shadow-sm">
-        <div class="text-[0.85rem] text-[#888] mb-2 uppercase tracking-wide">Total Bytes</div>
-        <div class="text-[1.8rem] font-semibold text-[#4ec9b0]">{formatBytes(stats.totalBytes)}</div>
-      </div>
-      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] shadow-sm">
-        <div class="text-[0.85rem] text-[#888] mb-2 uppercase tracking-wide">Avg Packet Size</div>
-        <div class="text-[1.8rem] font-semibold text-[#4ec9b0]">{stats.averagePacketSize > 0 ? Math.round(stats.averagePacketSize) : 0} bytes</div>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-[2fr_1fr] grid-rows-[auto_auto] gap-4">
-      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] flex flex-col col-start-1 col-end-2 row-start-1 row-end-2 min-h-[300px]">
-        <h4 class="m-0 mb-4 text-[#dcdcaa] text-base font-semibold">Traffic Rate (Last 60s)</h4>
-        <div class="flex-1 relative min-h-0">
-          <canvas bind:this={timeChartCanvas}></canvas>
+    <div class="flex flex-col gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="bg-[#252526] p-4 rounded border border-[#3e3e3e] shadow-sm flex flex-col justify-center min-w-0 overflow-hidden">
+          <div class="text-xs text-[#888] mb-1 font-medium tracking-wider uppercase truncate">Total Packets</div>
+          <div class="text-2xl font-bold text-[#4ec9b0] truncate">{stats.totalPackets.toLocaleString()}</div>
         </div>
-      </div>
-      
-      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] flex flex-col col-start-2 col-end-3 row-start-1 row-end-2 min-h-[300px]">
-        <h4 class="m-0 mb-4 text-[#dcdcaa] text-base font-semibold">Protocols</h4>
-        <div class="flex-1 relative min-h-0">
-          <canvas bind:this={protocolChartCanvas}></canvas>
+        <div class="bg-[#252526] p-4 rounded border border-[#3e3e3e] shadow-sm flex flex-col justify-center min-w-0 overflow-hidden">
+          <div class="text-xs text-[#888] mb-1 font-medium tracking-wider uppercase truncate">Total Bytes</div>
+          <div class="text-2xl font-bold text-[#4ec9b0] truncate">{formatBytes(stats.totalBytes)}</div>
+        </div>
+        <div class="bg-[#252526] p-4 rounded border border-[#3e3e3e] shadow-sm flex flex-col justify-center min-w-0 overflow-hidden">
+          <div class="text-xs text-[#888] mb-1 font-medium tracking-wider uppercase truncate">Avg Packet Size</div>
+          <div class="text-2xl font-bold text-[#4ec9b0] truncate">{stats.averagePacketSize > 0 ? Math.round(stats.averagePacketSize) : 0} bytes</div>
         </div>
       </div>
 
-      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] row-start-2 row-end-3">
-        <h4 class="m-0 mb-4 text-[#dcdcaa] text-base font-semibold">Top Sources</h4>
-        <div class="flex flex-col gap-2">
-          {#each stats.topSources as talker}
-            <div class="flex justify-between px-3 py-2 bg-[#1e1e1e] rounded border border-[#333] text-[0.85rem]">
-              <span class="text-[#4ec9b0] font-mono">{talker.address}</span>
-              <span class="text-[#dcdcaa] font-semibold">{talker.count}</span>
-            </div>
-          {/each}
+      <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-4">
+        <div class="bg-[#252526] p-4 rounded border border-[#3e3e3e] flex flex-col min-h-[300px]">
+          <h4 class="m-0 mb-4 text-[#dcdcaa] text-sm font-semibold tracking-wide uppercase">Traffic Rate</h4>
+          <div class="flex-1 relative min-h-0">
+            <canvas bind:this={timeChartCanvas}></canvas>
+          </div>
+        </div>
+        
+        <div class="bg-[#252526] p-4 rounded border border-[#3e3e3e] flex flex-col min-h-[300px]">
+          <h4 class="m-0 mb-4 text-[#dcdcaa] text-sm font-semibold tracking-wide uppercase">Protocols</h4>
+          <div class="flex-1 relative min-h-0">
+            <canvas bind:this={protocolChartCanvas}></canvas>
+          </div>
         </div>
       </div>
 
-      <div class="bg-[#252526] p-4 rounded-md border border-[#3e3e3e] row-start-2 row-end-3">
-        <h4 class="m-0 mb-4 text-[#dcdcaa] text-base font-semibold">Top Destinations</h4>
-        <div class="flex flex-col gap-2">
-          {#each stats.topDestinations as talker}
-            <div class="flex justify-between px-3 py-2 bg-[#1e1e1e] rounded border border-[#333] text-[0.85rem]">
-              <span class="text-[#4ec9b0] font-mono">{talker.address}</span>
-              <span class="text-[#dcdcaa] font-semibold">{talker.count}</span>
-            </div>
-          {/each}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-[#252526] p-4 rounded border border-[#3e3e3e]">
+          <h4 class="m-0 mb-4 text-[#dcdcaa] text-sm font-semibold tracking-wide uppercase">Top Sources</h4>
+          <div class="flex flex-col gap-1.5">
+            {#each stats.topSources as talker}
+              <div class="flex justify-between px-3 py-1.5 bg-[#1e1e1e] rounded hover:bg-[#2a2d2e] transition-colors text-[0.85rem]">
+                <span class="text-[#4ec9b0] font-mono">{talker.address}</span>
+                <span class="text-[#888] font-medium">{talker.count.toLocaleString()}</span>
+              </div>
+            {/each}
+          </div>
+        </div>
+
+        <div class="bg-[#252526] p-4 rounded border border-[#3e3e3e]">
+          <h4 class="m-0 mb-4 text-[#dcdcaa] text-sm font-semibold tracking-wide uppercase">Top Destinations</h4>
+          <div class="flex flex-col gap-1.5">
+            {#each stats.topDestinations as talker}
+              <div class="flex justify-between px-3 py-1.5 bg-[#1e1e1e] rounded hover:bg-[#2a2d2e] transition-colors text-[0.85rem]">
+                <span class="text-[#4ec9b0] font-mono">{talker.address}</span>
+                <span class="text-[#888] font-medium">{talker.count.toLocaleString()}</span>
+              </div>
+            {/each}
+          </div>
         </div>
       </div>
     </div>

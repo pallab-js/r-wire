@@ -5,7 +5,7 @@ import type { PacketSummary } from '../stores';
 describe('filter.ts', () => {
   const mockPacket: PacketSummary = {
     id: 1,
-    timestamp: '2024-03-29T10:00:00Z',
+    timestamp: 1711706400000000,
     source_addr: '192.168.1.1',
     dest_addr: '8.8.8.8',
     protocol: 'TCP',

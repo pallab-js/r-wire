@@ -28,35 +28,39 @@
   $: rows = chunkArray(safeBytes, bytesPerLine);
 </script>
 
-<div class="p-2 font-mono text-[0.85rem] bg-[#1e1e1e] text-[#d4d4d4]">
-  <div class="grid grid-cols-[80px_1fr_200px] gap-4 p-2 bg-[#252526] border-b-2 border-[#3e3e3e] font-semibold text-[#ccc]">
-    <span class="select-none">Offset</span>
-    <span>Hex</span>
+<div class="flex flex-col h-full font-mono text-[0.85rem] bg-[#1e1e1e] text-[#d4d4d4]">
+  <div class="grid grid-cols-[80px_1fr_160px] gap-4 p-2 bg-[#252526] border-b border-[#3e3e3e] font-semibold text-[#888] tracking-wider shrink-0 sticky top-0 z-10 text-xs">
+    <span class="select-none text-center">OFFSET</span>
+    <span>HEX</span>
     <span>ASCII</span>
   </div>
-  <div class="overflow-y-auto max-h-full">
-    {#each rows as row, rowIndex}
-      <div class="grid grid-cols-[80px_1fr_200px] gap-4 px-2 py-1 border-b border-[#2d2d2d] hover:bg-[#2a2a2a]">
-        <span class="text-[#858585] select-none">{((rowIndex * bytesPerLine).toString(16).padStart(8, '0').toUpperCase())}</span>
-        <span class="flex gap-1 flex-wrap">
-          {#each row as byte, byteIndex}
-            <span class="text-[#4ec9b0] min-w-[2ch] text-center">{formatHex(byte)}</span>
-            {#if (byteIndex + 1) % 8 === 0 && byteIndex < row.length - 1}
-              <span class="mx-1"> </span>
-            {/if}
-          {/each}
-          {#if row.length < bytesPerLine}
-            {#each Array(bytesPerLine - row.length) as _}
-              <span class="text-transparent min-w-[2ch] text-center">  </span>
+  <div class="flex-1 overflow-y-auto p-2">
+    {#if safeBytes.length === 0}
+      <div class="flex h-full items-center justify-center text-[#888] italic">No payload data</div>
+    {:else}
+      {#each rows as row, rowIndex}
+        <div class="grid grid-cols-[80px_1fr_160px] gap-4 px-2 py-0.5 hover:bg-[#2a2d2e] rounded group transition-colors">
+          <span class="text-[#858585] select-none text-right pr-2 border-r border-[#3e3e3e] group-hover:text-[#aaa]">{((rowIndex * bytesPerLine).toString(16).padStart(8, '0').toUpperCase())}</span>
+          <span class="flex gap-1.5 flex-wrap">
+            {#each row as byte, byteIndex}
+              <span class="text-[#9cdcfe] min-w-[2ch] text-center">{formatHex(byte)}</span>
+              {#if (byteIndex + 1) % 8 === 0 && byteIndex < row.length - 1}
+                <span class="mx-1"></span>
+              {/if}
             {/each}
-          {/if}
-        </span>
-        <span class="flex gap-0">
-          {#each row as byte}
-            <span class="text-[#ce9178] min-w-[1ch] text-center">{formatAscii(byte)}</span>
-          {/each}
-        </span>
-      </div>
-    {/each}
+            {#if row.length < bytesPerLine}
+              {#each Array(bytesPerLine - row.length) as _}
+                <span class="text-transparent min-w-[2ch] text-center"></span>
+              {/each}
+            {/if}
+          </span>
+          <span class="flex gap-0 text-[#ce9178] tracking-widest opacity-80 group-hover:opacity-100">
+            {#each row as byte}
+              <span>{formatAscii(byte)}</span>
+            {/each}
+          </span>
+        </div>
+      {/each}
+    {/if}
   </div>
 </div>

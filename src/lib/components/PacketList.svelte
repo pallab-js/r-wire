@@ -1,13 +1,13 @@
 <script lang="ts">
   import { listen } from '@tauri-apps/api/event';
   import { invoke } from '@tauri-apps/api/tauri';
-  import { selectedPacket, filteredPackets, addPackets, packetList, type PacketSummary, type PacketDetail } from '../stores';
+  import { selectedPacket, addPackets, totalFilteredCount, debouncedFilter, packetList, type PacketSummary, type PacketDetail } from '../stores';
   import { onMount } from 'svelte';
 
   let selectedId: number | null = null;
   
-  // Use memoized filtered packets from store
-  $: filteredPacketsList = $filteredPackets;
+  // Local cache for current window of packets
+  let visiblePackets: PacketSummary[] = [];
   
   // Timestamp formatting cache
   const timestampCache = new Map<number, string>();
@@ -16,20 +16,52 @@
   let scrollTop = 0;
   let clientHeight = 600;
   const ROW_HEIGHT = 28; // Fixed height per row
-  const OVERSCAN = 20;   // Render 20 rows above/below
+  const OVERSCAN = 30;   // Render 30 rows above/below
 
-  $: totalPacketsCount = filteredPacketsList.length;
+  $: totalPacketsCount = $totalFilteredCount;
   $: startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
   $: endIndex = Math.min(totalPacketsCount, Math.floor((scrollTop + clientHeight) / ROW_HEIGHT) + OVERSCAN);
-  $: visiblePackets = filteredPacketsList.slice(startIndex, endIndex);
+  
   $: paddingTop = startIndex * ROW_HEIGHT;
   $: paddingBottom = Math.max(0, (totalPacketsCount - endIndex) * ROW_HEIGHT);
+
+  // Fetch packets when the window changes
+  let currentFetchId = 0;
+  $: {
+    const fetchId = ++currentFetchId;
+    const offset = startIndex;
+    const limit = Math.max(0, endIndex - startIndex);
+    const filter = $debouncedFilter;
+    
+    if (limit > 0) {
+      invoke<PacketSummary[]>('get_packets', { offset, limit, filter: filter || null })
+        .then(packets => {
+          if (fetchId === currentFetchId) {
+            visiblePackets = packets;
+          }
+        })
+        .catch(err => console.error('Failed to fetch packets:', err));
+    } else {
+      visiblePackets = [];
+    }
+  }
+
+  // Update total count when filter changes
+  $: {
+    const filter = $debouncedFilter;
+    invoke<number>('get_packet_count', { filter: filter || null })
+      .then(count => {
+        totalFilteredCount.set(count);
+      })
+      .catch(err => console.error('Failed to get count:', err));
+  }
 
   onMount(() => {
     let unlistenFn: (() => void) | null = null;
     
     listen('new_packet_batch', (event: any) => {
       const newPackets = event.payload as PacketSummary[];
+      // We still update statistics via addPackets, which also updates total count
       addPackets(newPackets);
     }).then(fn => {
       unlistenFn = fn;
@@ -86,27 +118,27 @@
 
   function getProtocolColor(protocol: string) {
     const p = protocol.toLowerCase();
-    if (p === 'tcp') return 'text-[#4a9eff] border-l-[#4a9eff]';
-    if (p === 'udp') return 'text-[#ffa500] border-l-[#ffa500]';
-    if (p === 'icmp' || p === 'icmpv6') return 'text-[#00ff00] border-l-[#00ff00]';
-    if (p === 'arp') return 'text-[#ff6b6b] border-l-[#ff6b6b]';
-    if (p === 'dns') return 'text-[#9b59b6] border-l-[#9b59b6]';
-    if (p === 'http' || p === 'https') return 'text-[#3498db] border-l-[#3498db]';
-    return 'text-[#dcdcaa] border-l-transparent'; // default
+    if (p === 'tcp') return 'text-[#569cd6]'; // VSCode blue
+    if (p === 'udp') return 'text-[#d7ba7d]'; // VSCode yellow/gold
+    if (p === 'icmp' || p === 'icmpv6') return 'text-[#b5cea8]'; // VSCode light green
+    if (p === 'arp') return 'text-[#c586c0]'; // VSCode purple
+    if (p === 'dns') return 'text-[#4ec9b0]'; // VSCode teal
+    if (p === 'http' || p === 'https') return 'text-[#9cdcfe]'; // VSCode light blue
+    return 'text-[#dcdcaa]'; // default
   }
 </script>
 
-<div class="flex-1 overflow-y-auto overflow-x-hidden bg-[#1e1e1e] h-full relative" on:scroll={handleScroll} bind:clientHeight>
-  <table class="w-full border-collapse font-mono text-[0.85rem] table-fixed">
-    <thead class="sticky top-0 bg-[#252526] z-10">
+<div class="flex-1 overflow-y-auto overflow-x-auto bg-[#1e1e1e] h-full relative" on:scroll={handleScroll} bind:clientHeight>
+  <table class="w-full border-collapse font-mono text-[0.85rem] min-w-max">
+    <thead class="sticky top-0 bg-[#252526] z-10 shadow-sm border-b border-[#3e3e3e]">
       <tr>
-        <th class="w-[80px] px-2 py-1.5 text-left text-[#ccc] font-semibold border-b-2 border-[#3e3e3e]">No.</th>
-        <th class="w-[120px] px-2 py-1.5 text-left text-[#ccc] font-semibold border-b-2 border-[#3e3e3e]">Time</th>
-        <th class="w-[200px] px-2 py-1.5 text-left text-[#ccc] font-semibold border-b-2 border-[#3e3e3e]">Source</th>
-        <th class="w-[200px] px-2 py-1.5 text-left text-[#ccc] font-semibold border-b-2 border-[#3e3e3e]">Destination</th>
-        <th class="w-[100px] px-2 py-1.5 text-left text-[#ccc] font-semibold border-b-2 border-[#3e3e3e]">Protocol</th>
-        <th class="w-[80px] px-2 py-1.5 text-left text-[#ccc] font-semibold border-b-2 border-[#3e3e3e]">Length</th>
-        <th class="px-2 py-1.5 text-left text-[#ccc] font-semibold border-b-2 border-[#3e3e3e]">Info</th>
+        <th class="w-[80px] min-w-[80px] px-3 py-2 text-left text-[#999] font-medium text-xs tracking-wider uppercase">No.</th>
+        <th class="w-[140px] min-w-[140px] px-3 py-2 text-left text-[#999] font-medium text-xs tracking-wider uppercase">Time</th>
+        <th class="w-[200px] min-w-[150px] px-3 py-2 text-left text-[#999] font-medium text-xs tracking-wider uppercase">Source</th>
+        <th class="w-[200px] min-w-[150px] px-3 py-2 text-left text-[#999] font-medium text-xs tracking-wider uppercase">Destination</th>
+        <th class="w-[100px] min-w-[100px] px-3 py-2 text-left text-[#999] font-medium text-xs tracking-wider uppercase">Protocol</th>
+        <th class="w-[80px] min-w-[80px] px-3 py-2 text-left text-[#999] font-medium text-xs tracking-wider uppercase">Length</th>
+        <th class="min-w-[300px] px-3 py-2 text-left text-[#999] font-medium text-xs tracking-wider uppercase">Info</th>
       </tr>
     </thead>
     <tbody>
@@ -119,22 +151,16 @@
       {#each visiblePackets as packet (packet.id)}
         {@const colorClasses = getProtocolColor(packet.protocol)}
         <tr 
-          class="cursor-pointer bg-[#1e1e1e] hover:bg-[#2a2a2a] {selectedId === packet.id ? '!bg-[#094771]' : ''} border-l-[3px]"
-          class:!border-l-[#4a9eff]={packet.protocol === 'TCP'}
-          class:!border-l-[#ffa500]={packet.protocol === 'UDP'}
-          class:!border-l-[#00ff00]={packet.protocol === 'ICMP' || packet.protocol === 'ICMPv6'}
-          class:!border-l-[#ff6b6b]={packet.protocol === 'ARP'}
-          class:!border-l-[#9b59b6]={packet.protocol === 'DNS'}
-          class:!border-l-[#3498db]={packet.protocol === 'HTTP' || packet.protocol === 'HTTPS'}
+          class="cursor-pointer bg-[#1e1e1e] hover:bg-[#2a2d2e] {selectedId === packet.id ? '!bg-[#094771]' : ''} group"
           on:click={() => selectPacket(packet)}
         >
-          <td class="px-2 py-0 text-[#d4d4d4] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px]">{packet.id}</td>
-          <td class="px-2 py-0 text-[#d4d4d4] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px]">{formatTimestamp(packet.timestamp)}</td>
-          <td class="px-2 py-0 text-[#4ec9b0] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px]">{packet.source_addr}</td>
-          <td class="px-2 py-0 text-[#4ec9b0] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px]">{packet.dest_addr}</td>
-          <td class="px-2 py-0 border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-semibold {colorClasses.split(' ')[0]}">{packet.protocol}</td>
-          <td class="px-2 py-0 text-[#d4d4d4] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px]">{packet.length}</td>
-          <td class="px-2 py-0 text-[#ce9178] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px]" title={packet.info}>{packet.info}</td>
+          <td class="px-3 py-0 text-[#888] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[#ccc]">{packet.id}</td>
+          <td class="px-3 py-0 text-[#888] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[#ccc]">{formatTimestamp(packet.timestamp)}</td>
+          <td class="px-3 py-0 text-[#dcdcaa] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-medium">{packet.source_addr}</td>
+          <td class="px-3 py-0 text-[#dcdcaa] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-medium">{packet.dest_addr}</td>
+          <td class="px-3 py-0 border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-bold {colorClasses.split(' ')[0]}">{packet.protocol}</td>
+          <td class="px-3 py-0 text-[#888] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[#ccc]">{packet.length}</td>
+          <td class="px-3 py-0 text-[#ce9178] border-b border-[#2d2d2d] h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px]" title={packet.info}>{packet.info}</td>
         </tr>
       {/each}
       
@@ -146,10 +172,10 @@
     </tbody>
   </table>
   
-  {#if filteredPacketsList.length === 0}
+  {#if totalPacketsCount === 0}
     <div class="absolute top-[50px] left-0 right-0 p-8 text-center text-[#888] italic">
-      {#if $packetList.length > 0}
-        No packets match the current filter. ({$packetList.length.toLocaleString()} total packets)
+      {#if $totalFilteredCount > 0}
+        No packets match the current filter.
       {:else}
         No packets captured yet. Click "Start" to begin capturing.
       {/if}

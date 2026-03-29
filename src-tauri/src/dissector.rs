@@ -6,6 +6,8 @@ use pnet::packet::udp::UdpPacket;
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::Packet;
 use crate::model::{PacketSummary, PacketDetail, ProtocolLayer};
+use crate::state::FlowKey;
+use std::net::IpAddr;
 
 // Protocol name constants to avoid repeated string allocations
 const PROTO_TCP: &str = "TCP";
@@ -16,6 +18,52 @@ const PROTO_IPV4: &str = "IPv4";
 const PROTO_IPV6: &str = "IPv6";
 const PROTO_ARP: &str = "ARP";
 const PROTO_UNKNOWN: &str = "Unknown";
+
+/// Extracts a flow key from a raw packet if it's an IP packet with a transport layer.
+pub fn get_flow_key(raw_data: &[u8]) -> Option<FlowKey> {
+    let ethernet = EthernetPacket::new(raw_data)?;
+    match ethernet.get_ethertype() {
+        EtherTypes::Ipv4 => {
+            let ipv4 = Ipv4Packet::new(ethernet.payload())?;
+            let src_ip = IpAddr::V4(ipv4.get_source());
+            let dst_ip = IpAddr::V4(ipv4.get_destination());
+            let protocol = ipv4.get_next_level_protocol().0;
+            
+            let (src_port, dst_port) = match ipv4.get_next_level_protocol() {
+                IpNextHeaderProtocols::Tcp => {
+                    let tcp = TcpPacket::new(ipv4.payload())?;
+                    (tcp.get_source(), tcp.get_destination())
+                }
+                IpNextHeaderProtocols::Udp => {
+                    let udp = UdpPacket::new(ipv4.payload())?;
+                    (udp.get_source(), udp.get_destination())
+                }
+                _ => (0, 0),
+            };
+            Some(FlowKey::new(src_ip, dst_ip, protocol, src_port, dst_port))
+        }
+        EtherTypes::Ipv6 => {
+            let ipv6 = Ipv6Packet::new(ethernet.payload())?;
+            let src_ip = IpAddr::V6(ipv6.get_source());
+            let dst_ip = IpAddr::V6(ipv6.get_destination());
+            let protocol = ipv6.get_next_header().0;
+            
+            let (src_port, dst_port) = match ipv6.get_next_header() {
+                IpNextHeaderProtocols::Tcp => {
+                    let tcp = TcpPacket::new(ipv6.payload())?;
+                    (tcp.get_source(), tcp.get_destination())
+                }
+                IpNextHeaderProtocols::Udp => {
+                    let udp = UdpPacket::new(ipv6.payload())?;
+                    (udp.get_source(), udp.get_destination())
+                }
+                _ => (0, 0),
+            };
+            Some(FlowKey::new(src_ip, dst_ip, protocol, src_port, dst_port))
+        }
+        _ => None,
+    }
+}
 
 // Lightweight parser for the packet list view
 pub fn parse_summary(raw_data: &[u8], id: u64, timestamp_ns: i64) -> Option<PacketSummary> {

@@ -34,9 +34,11 @@ const _packetListInternal = writable<PacketSummary[]>([]);
 export const packetList = derived(_packetListInternal, ($list) => $list);
 export const statistics = writable<Statistics>(createEmptyStatistics());
 export const filteredPackets = writable<PacketSummary[]>([]);
+export const totalFilteredCount = writable<number>(0);
 
 // Filter store with debouncing
 export const displayFilter = writable<string>('');
+export const bpfFilter = writable<string>('');
 const _debouncedFilterInternal = writable<string>('');
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -46,7 +48,7 @@ let currentPackets: PacketSummary[] = [];
 
 _debouncedFilterInternal.subscribe(filter => {
     currentFilter = filter;
-    filteredPackets.set(getFilteredPackets(currentPackets, filter));
+    // We don't filter client-side anymore, the component will fetch from backend
 });
 
 // Helper to add packets with limit
@@ -55,45 +57,29 @@ export function addPackets(newPackets: PacketSummary[]) {
         return;
     }
     
-    _packetListInternal.update(list => {
-        const updated = [...list, ...newPackets];
-        if (updated.length > MAX_FRONTEND_PACKETS) {
-            currentPackets = updated.slice(-MAX_FRONTEND_PACKETS);
-        } else {
-            currentPackets = updated;
-        }
-        return currentPackets;
-    });
+    // We still update statistics incrementally
+    statistics.update(s => updateStatistics(s, newPackets));
 
-    // Update filtered packets incrementally
+    // For the UI, we increment the total count based on matching filter
     const matchingNew = getFilteredPackets(newPackets, currentFilter);
     if (matchingNew.length > 0 || currentFilter === '') {
-        filteredPackets.update(list => {
-            const updated = [...list, ...matchingNew];
-            if (updated.length > MAX_FRONTEND_PACKETS) {
-                return updated.slice(-MAX_FRONTEND_PACKETS);
-            }
-            return updated;
-        });
+        totalFilteredCount.update(n => n + matchingNew.length);
     }
-
-    // Update statistics incrementally
-    statistics.update(s => updateStatistics(s, newPackets));
 }
 
 // Helper to set packet list (for clear operation)
 export function setPacketList(packets: PacketSummary[]) {
-    const limited = packets.length > MAX_FRONTEND_PACKETS 
-        ? packets.slice(-MAX_FRONTEND_PACKETS)
-        : packets;
-    currentPackets = limited;
-    _packetListInternal.set(limited);
-    filteredPackets.set(getFilteredPackets(limited, currentFilter));
-    
-    // Reset stats if clearing
     if (packets.length === 0) {
+        _packetListInternal.set([]);
+        filteredPackets.set([]);
+        totalFilteredCount.set(0);
         resetStatistics();
         statistics.set(createEmptyStatistics());
+    } else {
+        // If we are setting a list (e.g. from an import/load), we might still want it in memory for now
+        // or just set the count.
+        _packetListInternal.set(packets);
+        totalFilteredCount.set(packets.length);
     }
 }
 

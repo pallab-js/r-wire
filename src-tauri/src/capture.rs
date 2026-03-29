@@ -1,5 +1,6 @@
 use crate::dissector;
 use crate::model::PacketSummary;
+use crate::state::FlowTable;
 use std::sync::{Arc, Mutex, mpsc as std_mpsc};
 use tokio::sync::mpsc as tokio_mpsc;
 use tokio::time::Instant;
@@ -9,13 +10,15 @@ use rusqlite::Connection;
 pub async fn run_capture(
     app_handle: tauri::AppHandle,
     interface_name: String,
+    filter: Option<String>,
     mut stop_rx: tokio_mpsc::Receiver<()>,
     db_conn: Arc<Mutex<Connection>>,
+    flow_table: Arc<Mutex<FlowTable>>,
 ) -> Result<(), String> {
-    log::info!("Starting packet capture on interface: {}", interface_name);
+    log::info!("Starting packet capture on interface: {} with filter: {:?}", interface_name, filter);
 
     // Open the capture device
-    let cap = pcap::Capture::from_device(interface_name.as_str())
+    let mut cap = pcap::Capture::from_device(interface_name.as_str())
         .map_err(|e| {
             let err_str = e.to_string();
             if err_str.contains("Permission denied") || err_str.contains("permission") {
@@ -40,6 +43,14 @@ pub async fn run_capture(
                 format!("Failed to activate capture: {}", e)
             }
         })?;
+
+    // Apply BPF filter if provided
+    if let Some(f) = filter {
+        if let Err(e) = cap.filter(&f, true) {
+            log::error!("Failed to apply BPF filter '{}': {}", f, e);
+            return Err(format!("Invalid BPF filter: {}", e));
+        }
+    }
 
     log::info!("Successfully opened capture device: {}", interface_name);
 
@@ -71,23 +82,51 @@ pub async fn run_capture(
     });
 
     let mut batch: Vec<PacketSummary> = Vec::new();
-    let mut db_batch: Vec<(u64, Vec<u8>, i64)> = Vec::new();
+    let mut db_batch: Vec<(PacketSummary, Vec<u8>)> = Vec::new();
     let mut last_emit = Instant::now();
     const BATCH_SIZE: usize = 50;
     const DB_BATCH_SIZE: usize = 200;
     const BATCH_TIMEOUT_MS: u64 = 250;
 
-    let insert_packets = |db: &mut Connection, packets: &Vec<(u64, Vec<u8>, i64)>| {
+    let insert_packets = |db: &mut Connection, packets: &Vec<(PacketSummary, Vec<u8>)>| {
         if packets.is_empty() { return; }
-        if let Ok(tx) = db.transaction() {
-            {
-                let mut stmt = tx.prepare_cached("INSERT INTO packets (id, timestamp_ns, data) VALUES (?1, ?2, ?3)").unwrap();
-                for (id, data, ts) in packets {
-                    let id_i64 = *id as i64;
-                    let _ = stmt.execute(rusqlite::params![id_i64, ts, data]);
+        match db.transaction() {
+            Ok(tx) => {
+                let mut success = true;
+                {
+                    match tx.prepare_cached("INSERT INTO packets (id, timestamp_ns, source_addr, dest_addr, protocol, length, info, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)") {
+                        Ok(mut stmt) => {
+                            for (summary, data) in packets {
+                                let id_i64 = summary.id as i64;
+                                if let Err(e) = stmt.execute(rusqlite::params![
+                                    id_i64,
+                                    summary.timestamp,
+                                    summary.source_addr,
+                                    summary.dest_addr,
+                                    summary.protocol,
+                                    summary.length,
+                                    summary.info,
+                                    data
+                                ]) {
+                                    log::error!("Failed to insert packet {}: {}", id_i64, e);
+                                    success = false;
+                                    break;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to prepare insert statement: {}", e);
+                            success = false;
+                        }
+                    }
+                }
+                if success {
+                    if let Err(e) = tx.commit() {
+                        log::error!("Failed to commit transaction: {}", e);
+                    }
                 }
             }
-            let _ = tx.commit();
+            Err(e) => log::error!("Failed to start transaction: {}", e),
         }
     };
 
@@ -110,7 +149,14 @@ pub async fn run_capture(
                     match packet_rx.try_recv() {
                         Ok((packet_id, packet_data, timestamp_ns)) => {
                             if let Some(summary) = dissector::parse_summary(&packet_data, packet_id, timestamp_ns) {
-                                db_batch.push((packet_id, packet_data, timestamp_ns));
+                                // Update flow table for connection tracking
+                                if let Some(key) = dissector::get_flow_key(&packet_data) {
+                                    if let Ok(mut flows) = flow_table.lock() {
+                                        flows.update(packet_id, timestamp_ns, summary.length, key);
+                                    }
+                                }
+                                
+                                db_batch.push((summary.clone(), packet_data));
                                 batch.push(summary);
                             }
                         }

@@ -2,11 +2,14 @@ pub mod model;
 pub mod dissector;
 pub mod capture;
 pub mod export;
+pub mod state;
 
 use std::sync::Mutex;
 use tokio::sync::mpsc;
 use std::sync::Arc;
 use rusqlite::Connection;
+use state::FlowTable;
+use tauri::Manager;
 
 // Initialize logging
 #[cfg(not(debug_assertions))]
@@ -17,6 +20,123 @@ pub struct AppState {
     pub stop_tx: Mutex<Option<mpsc::Sender<()>>>,
     // SQLite connection for packet storage
     pub db_conn: Arc<Mutex<Connection>>,
+    // Global flow table for connection tracking
+    pub flow_table: Arc<Mutex<FlowTable>>,
+}
+
+/// Retrieves a paginated list of packets, optionally filtered.
+#[tauri::command]
+async fn get_packets(
+    offset: usize,
+    limit: usize,
+    filter: Option<String>,
+    state: tauri::State<'_, AppState>
+) -> Result<Vec<model::PacketSummary>, String> {
+    let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
+    
+    let (where_clause, params) = if let Some(f) = filter {
+        build_filter_clause(&f)
+    } else {
+        ("".to_string(), vec![])
+    };
+
+    let query = format!(
+        "SELECT id, timestamp_ns, source_addr, dest_addr, protocol, length, info FROM packets {} ORDER BY id ASC LIMIT ? OFFSET ?",
+        where_clause
+    );
+
+    let mut stmt = db.prepare(&query).map_err(|e| format!("Prepare failed: {}", e))?;
+    
+    // Convert Vec<String> to Vec<&dyn ToSql>
+    let mut sql_params: Vec<&dyn rusqlite::ToSql> = params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+    let limit_i64 = limit as i64;
+    let offset_i64 = offset as i64;
+    sql_params.push(&limit_i64);
+    sql_params.push(&offset_i64);
+
+    let packet_rows = stmt.query_map(&*sql_params, |row| {
+        Ok(model::PacketSummary {
+            id: row.get::<_, i64>(0)? as u64,
+            timestamp: row.get(1)?,
+            source_addr: row.get(2)?,
+            dest_addr: row.get(3)?,
+            protocol: row.get(4)?,
+            length: row.get(5)?,
+            info: row.get(6)?,
+        })
+    }).map_err(|e| format!("Query failed: {}", e))?;
+
+    let mut packets = Vec::new();
+    for packet in packet_rows {
+        packets.push(packet.map_err(|e| format!("Row mapping failed: {}", e))?);
+    }
+
+    Ok(packets)
+}
+
+/// Retrieves the total count of packets matching a filter.
+#[tauri::command]
+async fn get_packet_count(
+    filter: Option<String>,
+    state: tauri::State<'_, AppState>
+) -> Result<usize, String> {
+    let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
+    
+    let (where_clause, params) = if let Some(f) = filter {
+        build_filter_clause(&f)
+    } else {
+        ("".to_string(), vec![])
+    };
+
+    let query = format!("SELECT COUNT(*) FROM packets {}", where_clause);
+    let mut stmt = db.prepare(&query).map_err(|e| format!("Prepare failed: {}", e))?;
+    
+    let sql_params: Vec<&dyn rusqlite::ToSql> = params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+    
+    let count: i64 = stmt.query_row(&*sql_params, |row| row.get(0)).map_err(|e| format!("Count failed: {}", e))?;
+    
+    Ok(count as usize)
+}
+
+fn build_filter_clause(filter: &str) -> (String, Vec<String>) {
+    let filter = filter.to_lowercase();
+    let filter = filter.trim();
+    if filter.is_empty() {
+        return ("".to_string(), vec![]);
+    }
+
+    if filter.starts_with("protocol:") {
+        let val = filter.replace("protocol:", "").trim().to_string();
+        return ("WHERE protocol LIKE ?".to_string(), vec![format!("%{}%", val)]);
+    }
+    if filter.starts_with("ip:") {
+        let val = filter.replace("ip:", "").trim().to_string();
+        return ("WHERE source_addr LIKE ? OR dest_addr LIKE ?".to_string(), vec![format!("%{}%", val), format!("%{}%", val)]);
+    }
+    if filter.starts_with("src:") {
+        let val = filter.replace("src:", "").trim().to_string();
+        return ("WHERE source_addr LIKE ?".to_string(), vec![format!("%{}%", val)]);
+    }
+    if filter.starts_with("dst:") {
+        let val = filter.replace("dst:", "").trim().to_string();
+        return ("WHERE dest_addr LIKE ?".to_string(), vec![format!("%{}%", val)]);
+    }
+    if filter.starts_with("port:") {
+        let val = filter.replace("port:", "").trim().to_string();
+        return ("WHERE info LIKE ?".to_string(), vec![format!("%{}%", val)]);
+    }
+
+    // General search
+    (
+        "WHERE protocol LIKE ? OR source_addr LIKE ? OR dest_addr LIKE ? OR info LIKE ? OR CAST(length AS TEXT) LIKE ?".to_string(),
+        vec![
+            format!("%{}%", filter),
+            format!("%{}%", filter),
+            format!("%{}%", filter),
+            format!("%{}%", filter),
+            format!("%{}%", filter),
+        ]
+    )
 }
 
 /// Lists all available network interfaces for packet capture.
@@ -34,6 +154,7 @@ fn list_interfaces() -> Result<Vec<String>, String> {
 #[tauri::command]
 async fn start_capture(
     interface_name: String,
+    filter: Option<String>,
     app_handle: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
@@ -48,24 +169,68 @@ async fn start_capture(
     *stop_tx_guard = Some(stop_tx);
     drop(stop_tx_guard); // Release lock early
 
-    // Clear packet table
+    // Clear packet table and flow table
     {
         let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
         db.execute("DELETE FROM packets", []).map_err(|e| format!("Failed to clear packets: {}", e))?;
+        
+        let mut flows = state.flow_table.lock().map_err(|e| format!("Failed to lock flow table: {}", e))?;
+        flows.clear();
     }
 
     // Clone the DB Arc for the task
     let db_conn = Arc::clone(&state.db_conn);
+    let flow_table = Arc::clone(&state.flow_table);
 
     // Spawn the capture task
     let app_handle_clone = app_handle.clone();
     tokio::spawn(async move {
-        if let Err(e) = capture::run_capture(app_handle_clone, interface_name, stop_rx, db_conn).await {
+        if let Err(e) = capture::run_capture(app_handle_clone, interface_name, filter, stop_rx, db_conn, flow_table).await {
             eprintln!("Capture error: {}", e);
         }
     });
 
     Ok(())
+}
+
+/// Exports all packets from the database to a PCAP file.
+#[tauri::command]
+fn export_pcap_all(
+    file_path: String,
+    state: tauri::State<'_, AppState>
+) -> Result<usize, String> {
+    use std::path::PathBuf;
+    
+    let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
+    let path = PathBuf::from(file_path);
+    
+    let mut stmt = db.prepare("SELECT id, timestamp_ns, data FROM packets ORDER BY id ASC").map_err(|e| format!("Prepare failed: {}", e))?;
+    
+    let rows = stmt.query_map([], |row| {
+        let id_i64: i64 = row.get(0)?;
+        let id = id_i64 as u64;
+        let timestamp_ns: i64 = row.get(1)?;
+        let data: Vec<u8> = row.get(2)?;
+        Ok((id, timestamp_ns, data))
+    }).map_err(|e| format!("Query failed: {}", e))?;
+    
+    let mut packet_list = Vec::new();
+    for row in rows {
+        if let Ok((id, timestamp_ns, data)) = row {
+            if let Some(summary) = dissector::parse_summary(&data, id, timestamp_ns) {
+                packet_list.push((summary, data, timestamp_ns));
+            }
+        }
+    }
+    
+    if packet_list.is_empty() {
+        return Err("No packets found in database".to_string());
+    }
+    
+    let exported_count = packet_list.len();
+    export::export_pcap_db(&packet_list, path)?;
+    
+    Ok(exported_count)
 }
 
 /// Stops the currently active packet capture session.
@@ -156,16 +321,40 @@ fn export_pcap(
     Ok(exported_count)
 }
 
-fn init_db() -> Result<Connection, rusqlite::Error> {
-    let conn = Connection::open("capture.db")?;
+fn init_db(_app_handle: &tauri::AppHandle) -> Result<Connection, Box<dyn std::error::Error>> {
+    let mut root_dir = std::env::current_dir()?;
+    
+    // If we are running from src-tauri (common in dev), move up to project root
+    if root_dir.ends_with("src-tauri") {
+        if let Some(parent) = root_dir.parent() {
+            root_dir = parent.to_path_buf();
+        }
+    }
+    
+    let db_path = root_dir.join("capture.db");
+    log::info!("Initializing database at: {:?}", db_path);
+
+    let conn = Connection::open(db_path)?;
+    
+    // Refresh schema for development to ensure all columns exist
+    conn.execute("DROP TABLE IF EXISTS packets", [])?;
+    
     conn.execute(
         "CREATE TABLE IF NOT EXISTS packets (
             id INTEGER PRIMARY KEY,
             timestamp_ns INTEGER NOT NULL,
+            source_addr TEXT,
+            dest_addr TEXT,
+            protocol TEXT,
+            length INTEGER,
+            info TEXT,
             data BLOB NOT NULL
         )",
         [],
     )?;
+    
+    // Create an index on id for fast pagination
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_packets_id ON packets(id)", [])?;
     
     // Optimizations for write-heavy workload
     conn.execute_batch("
@@ -195,19 +384,27 @@ pub fn run() {
 
     log::info!("Starting AuraCap Network Analyzer");
     
-    let db_conn = init_db().expect("Failed to initialize SQLite database");
-
     tauri::Builder::default()
-        .manage(AppState {
-            stop_tx: Mutex::new(None),
-            db_conn: Arc::new(Mutex::new(db_conn)),
+        .setup(|app| {
+            let handle = app.handle();
+            let db_conn = init_db(&handle).expect("Failed to initialize SQLite database");
+            
+            app.manage(AppState {
+                stop_tx: Mutex::new(None),
+                db_conn: Arc::new(Mutex::new(db_conn)),
+                flow_table: Arc::new(Mutex::new(FlowTable::new())),
+            });
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             list_interfaces,
             start_capture,
             stop_capture,
             get_packet_detail,
-            export_pcap
+            export_pcap,
+            export_pcap_all,
+            get_packets,
+            get_packet_count
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {
