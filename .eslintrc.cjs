@@ -5,10 +5,11 @@ module.exports = {
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
     'plugin:svelte/recommended',
+    'plugin:security/recommended-legacy',
     'prettier'
   ],
   parser: '@typescript-eslint/parser',
-  plugins: ['@typescript-eslint'],
+  plugins: ['@typescript-eslint', 'security'],
   parserOptions: {
     sourceType: 'module',
     ecmaVersion: 2020,

@@ -1,10 +1,10 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/tauri';
   import { listen } from '@tauri-apps/api/event';
-  import { 
-    availableInterfaces, 
-    selectedInterface, 
-    isCapturing, 
+  import {
+    availableInterfaces,
+    selectedInterface,
+    isCapturing,
     captureError,
     packetList,
     selectedPacket,
@@ -102,7 +102,7 @@
     try {
       const { save } = await import('@tauri-apps/api/dialog');
       const { invoke } = await import('@tauri-apps/api/tauri');
-      
+
       const filePath = await save({
         title: 'Export PCAP File',
         defaultPath: 'capture.pcap',
@@ -113,12 +113,9 @@
       });
 
       if (filePath) {
-        // We'll need to fetch ALL ids from DB if we want to export filtered list
-        // or just export everything for now. 
-        // For simplicity, let's keep it as is, but we might need a backend export_all
-        const packetIds = []; // This needs fixing too
+        const packetIds = [];
         captureError.set("Exporting all captured packets...");
-        const exportedCount = await invoke<number>('export_pcap_all', { 
+        const exportedCount = await invoke<number>('export_pcap_all', {
           filePath
         });
         captureError.set(null);
@@ -135,15 +132,16 @@
   }
 </script>
 
-<div class="px-4 py-3 bg-[#252526] border-b border-[#3e3e3e] flex items-center gap-5 flex-wrap shadow-[0_2px_8px_rgba(0,0,0,0.2)] relative z-20">
+<div class="px-4 py-3 flex items-center gap-5 flex-wrap relative z-20" style="background-color: var(--surface-100); border-bottom: 1px solid var(--border-primary);">
   <div class="flex items-center gap-3">
-    <div class="w-2.5 h-2.5 rounded-full transition-all duration-300 {intensityActive ? 'scale-150 bg-white shadow-[0_0_12px_#fff]' : ($isCapturing ? 'bg-[#4ec9b0] shadow-[0_0_8px_rgba(78,201,176,0.4)]' : 'bg-[#444]')}"></div>
-    <label for="interface-select" class="text-[#888] text-[0.85rem] font-semibold uppercase tracking-wider">Interface:</label>
-    <select 
+    <div class="w-2.5 h-2.5 rounded-full transition-all duration-300 {intensityActive ? 'scale-150' : ($isCapturing ? 'bg-[var(--color-success)]' : 'bg-[var(--border-medium)]')}"></div>
+    <label for="interface-select" class="text-micro">Interface:</label>
+    <select
       id="interface-select"
       bind:value={$selectedInterface}
       disabled={$isCapturing}
-      class="px-2.5 py-1.5 bg-[#1e1e1e] text-[#ccc] border border-[#444] rounded text-sm min-w-[140px] outline-none focus:border-[#007acc] disabled:opacity-50 disabled:cursor-not-allowed"
+      class="cursor-input text-sm min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed"
+      style="background-color: var(--surface-100);"
     >
       <option value={null}>Select Device...</option>
       {#each $availableInterfaces as iface}
@@ -152,82 +150,83 @@
     </select>
   </div>
 
-  <div class="flex items-center bg-[#1e1e1e] border border-[#444] rounded min-w-[200px] px-2 transition-colors duration-200 focus-within:border-[#007acc]">
-    <div class="text-[#666] flex items-center" title="Capture Filter (BPF)">
+  <div class="flex items-center border rounded min-w-[200px] px-2 transition-colors duration-200 focus-within:border-[var(--border-medium)]" style="background-color: var(--surface-100); border-color: var(--border-primary);">
+    <div class="text-muted flex items-center" title="Capture Filter (BPF)">
        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
     </div>
-    <input 
+    <input
       id="bpf-filter-input"
       type="text"
       placeholder="BPF Filter (e.g. tcp port 80)..."
       bind:value={$bpfFilter}
       disabled={$isCapturing}
-      class="flex-1 p-2 bg-transparent text-white border-none text-sm font-sans outline-none placeholder-[#666] disabled:opacity-50"
+      class="flex-1 p-2 bg-transparent text-sm outline-none placeholder-[rgba(38,37,30,0.55)] disabled:opacity-50"
       spellcheck="false"
     />
   </div>
 
   <div class="flex items-center gap-2">
-    <button 
+    <button
       on:click={startCapture}
       disabled={!$selectedInterface || $isCapturing}
-      class="px-3 py-1.5 border-none rounded cursor-pointer text-[0.85rem] font-semibold transition-all duration-200 flex items-center gap-1.5 bg-[#007acc] text-white hover:not-disabled:bg-[#005a9e] hover:not-disabled:-translate-y-px disabled:opacity-40 disabled:cursor-not-allowed"
+      class="cursor-btn-success flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
       title="Start Capture"
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       Start
     </button>
-    <button 
+    <button
       on:click={stopCapture}
       disabled={!$isCapturing}
-      class="px-3 py-1.5 border-none rounded cursor-pointer text-[0.85rem] font-semibold transition-all duration-200 flex items-center gap-1.5 bg-[#333] text-[#ccc] hover:not-disabled:bg-[#444] hover:not-disabled:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+      class="cursor-btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
       title="Stop Capture"
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
       Stop
     </button>
-    <button 
+    <button
       on:click={restartCapture}
       disabled={!$selectedInterface || !$isCapturing}
-      class="px-3 py-1.5 border-none rounded cursor-pointer text-[0.85rem] font-semibold transition-all duration-200 flex items-center gap-1.5 bg-[#333] text-[#ccc] hover:not-disabled:bg-[#444] hover:not-disabled:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+      class="cursor-btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
       title="Restart Capture"
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
     </button>
-    <div class="w-px h-6 bg-[#3e3e3e] mx-1"></div>
-    <button 
+    <div class="w-px h-6 mx-1" style="background-color: var(--border-primary);"></div>
+    <button
       on:click={clearPackets}
       disabled={$totalFilteredCount === 0}
-      class="px-3 py-1.5 border-none rounded cursor-pointer text-[0.85rem] font-semibold transition-all duration-200 flex items-center gap-1.5 bg-[#333] text-[#ccc] hover:not-disabled:bg-[#444] hover:not-disabled:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+      class="cursor-btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
       title="Clear packet list"
     >
       Clear
     </button>
-    <button 
+    <button
       on:click={exportPcap}
       disabled={$totalFilteredCount === 0}
-      class="px-3 py-1.5 border-none rounded cursor-pointer text-[0.85rem] font-semibold transition-all duration-200 flex items-center gap-1.5 bg-[#333] text-[#ccc] hover:not-disabled:bg-[#444] hover:not-disabled:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+      class="cursor-btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
       title="Export to PCAP file"
     >
       Export PCAP
     </button>
   </div>
 
-  <div class="flex items-center bg-[#1e1e1e] border border-[#444] rounded flex-1 max-w-[400px] px-2 transition-colors duration-200 focus-within:border-[#007acc]">
-    <div class="text-[#666] flex items-center">
+  <div class="flex items-center border rounded flex-1 max-w-[400px] px-2 transition-colors duration-200 focus-within:border-[var(--border-medium)]" style="background-color: var(--surface-100); border-color: var(--border-primary);">
+    <div class="text-muted flex items-center">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
     </div>
-    <input 
+    <input
       id="filter-input"
       type="text"
       placeholder="Display Filter (e.g. protocol:tcp)..."
       bind:value={$displayFilter}
-      class="flex-1 p-2 bg-transparent text-white border-none text-sm font-sans outline-none placeholder-[#666]"
+      class="flex-1 p-2 bg-transparent text-sm outline-none placeholder-[rgba(38,37,30,0.55)]"
       spellcheck="false"
     />
     {#if $displayFilter}
-      <button 
-        class="bg-transparent border-none text-[#888] text-lg cursor-pointer px-1 hover:text-white"
+      <button
+        class="bg-transparent border-none text-lg cursor-pointer px-1 hover:text-[var(--color-error)] transition-colors"
+        style="color: rgba(38, 37, 30, 0.55);"
         on:click={() => displayFilter.set('')}
         title="Clear display filter"
       >
@@ -237,16 +236,19 @@
   </div>
 
   <div class="ml-auto">
-    <span class="text-[#888] text-[0.85rem] px-3 py-1.5 bg-[#1e1e1e] rounded border {$isCapturing ? 'border-[#4ec9b0]' : 'border-[#3e3e3e]'} flex items-center gap-2">
-      <span class="uppercase font-semibold text-[0.75rem]">Packets</span>
-      <strong class="text-[#4ec9b0] font-mono text-base">{$totalFilteredCount.toLocaleString()}</strong>
+    <span class="text-micro px-3 py-1.5 rounded border flex items-center gap-2" style="background-color: var(--surface-100); border-color: var(--border-primary);">
+      <span>Packets</span>
+      <strong class="font-mono text-base" style="color: var(--color-success); font-family: var(--font-mono);">{$totalFilteredCount.toLocaleString()}</strong>
     </span>
   </div>
 
   {#if $captureError}
-    <div class="fixed top-[60px] right-5 bg-{$captureError.startsWith('PCAP exported') ? '[#1a5a1a]' : '[#5a1a1a]'} text-{$captureError.startsWith('PCAP exported') ? '[#6bff6b]' : '[#ff6b6b]'} px-4 py-3 rounded-md border border-{$captureError.startsWith('PCAP exported') ? '[#2a7a2a]' : '[#7a2a2a]'} flex items-center gap-4 z-[1000] shadow-[0_4px_12px_rgba(0,0,0,0.3)] animate-[slideIn_0.3s_ease-out]">
-      <span>{$captureError}</span>
-      <button class="bg-transparent border-none text-current text-xl cursor-pointer opacity-70 hover:opacity-100" on:click={() => captureError.set(null)}>×</button>
+    <div class="fixed top-[60px] right-5 px-4 py-3 rounded-md border flex items-center gap-4 z-[1000] animate-[slideIn_0.3s_ease-out]"
+      style="background-color: {$captureError.startsWith('PCAP exported') ? 'rgba(31, 138, 101, 0.15)' : 'rgba(207, 45, 86, 0.15)'};
+             color: {$captureError.startsWith('PCAP exported') ? 'var(--color-success)' : 'var(--color-error)'};
+             border-color: {$captureError.startsWith('PCAP exported') ? 'var(--color-success)' : 'var(--color-error)'};">
+      <span class="text-body-serif-sm">{$captureError}</span>
+      <button class="bg-transparent border-none text-current text-xl cursor-pointer opacity-70 hover:opacity-100 transition-opacity" on:click={() => captureError.set(null)}>×</button>
     </div>
   {/if}
 </div>

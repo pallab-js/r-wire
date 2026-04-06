@@ -33,14 +33,14 @@
   $: durationMs = (maxTime - minTime) / 1000000;
 </script>
 
-<div class="flex flex-col h-full bg-[#1e1e1e] p-6 overflow-hidden font-sans">
+<div class="flex flex-col h-full p-6 overflow-hidden" style="background-color: var(--cursor-cream); font-family: var(--font-mono);">
   <div class="mb-6 flex items-center justify-between">
     <div>
-      <h3 class="text-[#4ec9b0] text-sm font-bold uppercase tracking-widest mb-1">Flow Timeline</h3>
-      <p class="text-xs text-[#888]">Temporal distribution of packets in this conversation</p>
+      <h3 class="text-micro mb-1" style="color: var(--color-success);">Flow Timeline</h3>
+      <p class="text-xs" style="color: rgba(38, 37, 30, 0.55);">Temporal distribution of packets in this conversation</p>
     </div>
     {#if flowPackets.length > 0}
-      <div class="text-xs font-mono text-[#ccc] bg-[#252526] px-3 py-1 rounded border border-[#3e3e3e]">
+      <div class="text-xs px-3 py-1 rounded border" style="background-color: var(--surface-200); border-color: var(--border-primary); color: var(--cursor-dark); font-family: var(--font-mono);">
         DURATION: {durationMs.toFixed(3)} ms | PACKETS: {flowPackets.length}
       </div>
     {/if}
@@ -48,41 +48,41 @@
 
   <div class="flex-1 flex flex-col min-h-0">
     {#if loading}
-      <div class="flex-1 flex items-center justify-center text-[#888] italic">Analyzing temporal data...</div>
+      <div class="flex-1 flex items-center justify-center italic" style="color: rgba(38, 37, 30, 0.55);">Analyzing temporal data...</div>
     {:else if flowPackets.length === 0}
-      <div class="flex-1 flex items-center justify-center text-[#888] italic">No flow data available for this packet.</div>
+      <div class="flex-1 flex items-center justify-center italic" style="color: rgba(38, 37, 30, 0.55);">No flow data available for this packet.</div>
     {:else}
-      <div class="relative h-24 bg-[#252526] rounded-lg border border-[#3e3e3e] mb-8 overflow-hidden">
+      <div class="relative h-24 rounded-lg border mb-8 overflow-hidden" style="background-color: var(--surface-200); border-color: var(--border-primary);">
         <!-- Time scale -->
-        <div class="absolute inset-x-0 bottom-0 h-6 border-t border-[#3e3e3e] bg-[#1e1e1e]/50 flex justify-between px-2 items-center text-[0.65rem] text-[#666] font-mono">
+        <div class="absolute inset-x-0 bottom-0 h-6 border-t flex justify-between px-2 items-center text-xs font-mono" style="border-color: var(--border-primary); background-color: var(--surface-200); color: rgba(38, 37, 30, 0.55);">
           <span>0ms</span>
           <span>{durationMs.toFixed(1)}ms</span>
         </div>
 
         <!-- Packet markers -->
         {#each flowPackets as p}
-          <div 
-            class="absolute top-4 bottom-8 w-px bg-[#4ec9b0] hover:w-0.5 hover:bg-white transition-all cursor-crosshair group"
-            style="left: {getX(p.timestamp, minTime, maxTime)}"
+          <div
+            class="absolute top-4 bottom-8 w-px hover:w-0.5 hover:bg-[var(--cursor-dark)] transition-all cursor-crosshair group"
+            style="left: {getX(p.timestamp, minTime, maxTime)}; background-color: var(--color-success);"
             title="Packet #{p.id} | {((p.timestamp - minTime)/1000000).toFixed(3)}ms"
           >
-            <div class="hidden group-hover:block absolute -top-2 left-1/2 -translate-x-1/2 bg-white text-black text-[0.6rem] px-1 rounded font-bold z-10 whitespace-nowrap">
+            <div class="hidden group-hover:block absolute -top-2 left-1/2 -translate-x-1/2 text-[var(--cursor-dark)] text-xs px-1 rounded font-bold z-10 whitespace-nowrap" style="background-color: var(--surface-100);">
               #{p.id}
             </div>
           </div>
         {/each}
       </div>
 
-      <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-        <h4 class="text-[0.7rem] font-bold text-[#888] uppercase mb-3 tracking-wider">Event Log</h4>
-        <div class="flex flex-col gap-1 font-mono text-[0.75rem]">
+      <div class="flex-1 overflow-y-auto pr-2">
+        <h4 class="text-xs font-bold uppercase mb-3 tracking-wider" style="color: rgba(38, 37, 30, 0.55);">Event Log</h4>
+        <div class="flex flex-col gap-1 text-xs">
           {#each flowPackets as p}
-            <div class="flex items-center gap-4 py-1.5 px-3 rounded hover:bg-[#2a2d2e] transition-colors border-b border-white/5">
-              <span class="text-[#666] w-12">#{p.id}</span>
-              <span class="text-[#4ec9b0] w-24">+{((p.timestamp - minTime)/1000000).toFixed(3)} ms</span>
-              <span class="text-[#dcdcaa] w-24">{p.source_addr === flowPackets[0].source_addr ? 'SRC → DST' : 'DST → SRC'}</span>
-              <span class="text-[#ccc] flex-1 truncate">{p.info}</span>
-              <span class="text-[#888] text-[0.7rem]">{p.length} B</span>
+            <div class="flex items-center gap-4 py-1.5 px-3 rounded transition-colors border-b" style="border-color: var(--border-primary);" on:mouseenter={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-200)'} on:mouseleave={(e) => e.currentTarget.style.backgroundColor = ''}>
+              <span class="w-12" style="color: rgba(38, 37, 30, 0.55);">#{p.id}</span>
+              <span class="w-24" style="color: var(--color-success);">+{((p.timestamp - minTime)/1000000).toFixed(3)} ms</span>
+              <span class="w-24" style="color: rgba(38, 37, 30, 0.55);">{p.source_addr === flowPackets[0].source_addr ? 'SRC -> DST' : 'DST -> SRC'}</span>
+              <span class="flex-1 truncate" style="color: var(--cursor-dark);">{p.info}</span>
+              <span class="text-xs" style="color: rgba(38, 37, 30, 0.55);">{p.length} B</span>
             </div>
           {/each}
         </div>
@@ -99,7 +99,7 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #3e3e3e;
+    background: var(--border-primary);
     border-radius: 10px;
   }
 </style>

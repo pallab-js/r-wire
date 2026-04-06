@@ -18,7 +18,10 @@
     "lint": "prettier --plugin-search-dir . --check . && eslint .",
     "format": "prettier --plugin-search-dir . --write .",
     "test:unit": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "audit": "npm audit --audit-level=moderate",
+    "audit:fix": "npm audit fix",
+    "audit:rust": "cd src-tauri && cargo audit"
   },
   "license": "MIT",
   "dependencies": {
@@ -27,27 +30,28 @@
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.6",
-    "@sveltejs/kit": "^2.9.0",
+    "@sveltejs/kit": "^2.16.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tailwindcss/vite": "^4.2.2",
     "@tauri-apps/cli": "^1.5.9",
     "@testing-library/jest-dom": "^6.1.4",
     "@testing-library/svelte": "^4.0.5",
-    "@typescript-eslint/eslint-plugin": "^6.10.0",
-    "@typescript-eslint/parser": "^6.10.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
     "autoprefixer": "^10.4.27",
     "eslint": "^8.53.0",
     "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-security": "^4.0.0",
     "eslint-plugin-svelte": "^2.35.0",
-    "jsdom": "^22.1.0",
+    "jsdom": "^26.0.0",
     "postcss": "^8.5.8",
     "prettier": "^3.1.0",
     "prettier-plugin-svelte": "^3.1.2",
-    "svelte": "^5.0.0",
+    "svelte": "^5.16.0",
     "svelte-check": "^4.0.0",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.6.2",
-    "vite": "^6.0.3",
-    "vitest": "^0.34.6"
+    "vite": "^6.2.0",
+    "vitest": "^3.0.0"
   }
 }

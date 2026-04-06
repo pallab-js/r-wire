@@ -7,21 +7,21 @@
   import { selectedPacket, selectedStream } from '../lib/stores';
 
   let showStats = false;
-  
+
   // Resizing state
   let dragType: 'vertical' | 'horizontal' | null = null;
-  let listHeightPercent = 60; 
+  let listHeightPercent = 60;
   let statsWidthPx = 400;
-  
+
   function startDrag(type: 'vertical' | 'horizontal') {
     dragType = type;
     document.body.style.cursor = type === 'vertical' ? 'row-resize' : 'col-resize';
     document.body.style.userSelect = 'none';
   }
-  
+
   function onDrag(e: MouseEvent) {
     if (!dragType) return;
-    
+
     if (dragType === 'vertical') {
       const container = document.getElementById('split-container');
       if (!container) return;
@@ -34,7 +34,7 @@
       statsWidthPx = Math.max(300, Math.min(800, newWidth));
     }
   }
-  
+
   function stopDrag() {
     if (dragType) {
       dragType = null;
@@ -46,23 +46,22 @@
 
 <svelte:window on:mousemove={onDrag} on:mouseup={stopDrag} on:mouseleave={stopDrag} />
 
-<div class="flex flex-col h-screen bg-[#1e1e1e] text-[#d4d4d4] font-sans overflow-hidden select-none">
+<div class="flex flex-col h-screen overflow-hidden select-none" style="background-color: var(--cursor-cream); color: var(--cursor-dark);">
   <!-- Top Toolbar -->
-  <header class="flex-none bg-[#252526] border-b border-[#3e3e3e] shadow-sm z-20">
-    <div class="flex items-center justify-between px-4 py-2">
+  <header class="flex-none border-b z-20" style="background-color: var(--surface-100); border-color: var(--border-primary);">
+    <div class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-3">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ec9b0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/>
           <polyline points="14 2 14 8 20 8"/>
           <path d="M2 15h10"/>
           <path d="m9 18 3-3-3-3"/>
         </svg>
-        <h1 class="text-[#d4d4d4] font-semibold tracking-wide text-lg m-0">AuraCap</h1>
+        <h1 class="font-semibold tracking-wide text-lg m-0" style="font-family: var(--font-gothic); letter-spacing: -0.72px; color: var(--cursor-dark);">AuraCap</h1>
       </div>
-      <button 
-        class="px-3 py-1.5 border border-[#3e3e3e] rounded cursor-pointer text-sm font-medium transition-colors bg-transparent text-[#ccc] hover:bg-[#333] hover:text-white flex items-center gap-2"
-        class:bg-[#333]={showStats}
-        class:text-white={showStats}
+      <button
+        class="cursor-btn-secondary-pill flex items-center gap-2"
+        class:active={showStats}
         on:click={() => showStats = !showStats}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -79,23 +78,24 @@
   <!-- Main Content Area -->
   <main class="flex flex-1 overflow-hidden relative">
     <!-- Left Panel (Packets & Details) -->
-    <div class="flex-1 flex flex-col min-w-0 bg-[#1e1e1e] relative">
+    <div class="flex-1 flex flex-col min-w-0 relative" style="background-color: var(--cursor-cream);">
       <div id="split-container" class="flex-1 flex flex-col h-full relative">
         <!-- Packet List (Top Pane) -->
         <div class="flex flex-col relative overflow-hidden" style="height: {$selectedPacket ? listHeightPercent + '%' : '100%'}">
           <PacketList />
         </div>
-        
+
         <!-- Vertical Resizer -->
         {#if $selectedPacket}
-          <button 
+          <button
             aria-label="Resize panels"
-            class="h-1.5 w-full cursor-row-resize bg-[#2d2d2d] border-y border-[#3e3e3e] hover:bg-[#007acc] transition-colors flex items-center justify-center group z-10 p-0 border-x-0 shrink-0"
+            class="h-1.5 w-full cursor-row-resize border-y hover:bg-[var(--color-accent)] transition-colors flex items-center justify-center group z-10 p-0 border-x-0 shrink-0"
+            style="background-color: var(--surface-200); border-color: var(--border-primary);"
             on:mousedown={() => startDrag('vertical')}
           >
-             <div class="w-8 h-0.5 bg-[#555] rounded-full group-hover:bg-white transition-colors"></div>
+             <div class="w-8 h-0.5 rounded-full transition-colors group-hover:bg-[var(--cursor-dark)]" style="background-color: rgba(38, 37, 30, 0.3);"></div>
           </button>
-          
+
           <!-- Packet Details (Bottom Pane) -->
           <div class="flex flex-col overflow-hidden" style="height: {100 - listHeightPercent}%">
             <PacketDetailTabs />
@@ -106,18 +106,19 @@
 
     <!-- Stats Panel Horizontal Resizer -->
     {#if showStats}
-      <button 
+      <button
         aria-label="Resize statistics"
-        class="w-1.5 h-full cursor-col-resize bg-[#2d2d2d] border-x border-[#3e3e3e] hover:bg-[#007acc] transition-colors flex items-center justify-center group z-20 p-0 border-y-0 shrink-0"
+        class="w-1.5 h-full cursor-col-resize border-x hover:bg-[var(--color-accent)] transition-colors flex items-center justify-center group z-20 p-0 border-y-0 shrink-0"
+        style="background-color: var(--surface-200); border-color: var(--border-primary);"
         on:mousedown={() => startDrag('horizontal')}
       >
-         <div class="h-8 w-0.5 bg-[#555] rounded-full group-hover:bg-white transition-colors"></div>
+         <div class="h-8 w-0.5 rounded-full transition-colors group-hover:bg-[var(--cursor-dark)]" style="background-color: rgba(38, 37, 30, 0.3);"></div>
       </button>
 
       <!-- Right Panel (Statistics) -->
-      <div 
-        class="border-l border-[#3e3e3e] bg-[#252526] shadow-[-4px_0_15px_rgba(0,0,0,0.2)] z-10 overflow-y-auto shrink-0"
-        style="width: {statsWidthPx}px"
+      <div
+        class="border-l z-10 overflow-y-auto shrink-0"
+        style="width: {statsWidthPx}px; border-color: var(--border-primary); background-color: var(--surface-100);"
       >
         <StatisticsPanel />
       </div>
@@ -132,10 +133,10 @@
   :global(body) {
     margin: 0;
     padding: 0;
-    background-color: #1e1e1e;
+    background-color: var(--cursor-cream);
     overflow: hidden;
   }
-  
+
   /* Prevent text selection while dragging */
   :global(.dragging) {
     user-select: none !important;

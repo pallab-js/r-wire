@@ -2,17 +2,18 @@
   // Root layout for SvelteKit
   import '../app.css';
   import { onMount } from 'svelte';
-  
-  onMount(() => {
+
+  onMount(async () => {
     // Verify Tauri API is available
-    if (typeof window !== 'undefined' && window.__TAURI__) {
+    try {
+      await import('@tauri-apps/api/tauri');
       console.log('Tauri API is available');
-    } else {
+    } catch {
       console.warn('Tauri API not available - running in browser mode?');
     }
   });
 </script>
 
-<div class="h-screen w-screen flex flex-col overflow-hidden bg-[#1e1e1e] text-[#d4d4d4]">
+<div class="h-screen w-screen flex flex-col overflow-hidden" style="background-color: var(--cursor-cream); color: var(--cursor-dark);">
   <slot />
 </div>

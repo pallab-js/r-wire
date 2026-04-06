@@ -22,8 +22,8 @@ describe('HexView.svelte', () => {
     highlightedRange.set([0, 2]); // Highlight "He"
     await tick();
 
-    // The component should have applied highlighting classes
+    // The component should have applied highlighting via inline styles using OpenCode design system
     const highlightedByte = screen.getByText('48');
-    expect(highlightedByte).toHaveClass('bg-[#007acc]');
+    expect(highlightedByte.getAttribute('style')).toContain('background-color: var(--opencode-blue)');
   });
 });

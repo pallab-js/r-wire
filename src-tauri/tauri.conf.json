@@ -4,7 +4,7 @@
     "devPath": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
     "distDir": "../build",
-    "withGlobalTauri": true
+    "withGlobalTauri": false
   },
   "package": {
     "productName": "auracap",
@@ -36,7 +36,7 @@
       ]
     },
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'"
     },
     "windows": [
       {
