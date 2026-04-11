@@ -2,34 +2,54 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  release:
+    types: [created]
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  lint-and-test:
+  # ============================================================================
+  # FRONTEND TESTS (all platforms)
+  # ============================================================================
+  frontend-test:
+    name: Frontend Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Node.js
+      - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Lint Frontend
+      - name: Lint
         run: npm run lint
 
-      - name: Check Svelte
+      - name: Type Check
         run: npm run check
 
-      - name: Run Frontend Tests
+      - name: Unit Tests
         run: npm run test:unit
+
+  # ============================================================================
+  # RUST TESTS (Ubuntu)
+  # ============================================================================
+  rust-test:
+    name: Rust Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -41,11 +61,209 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Check Rust Format
-        run: cd src-tauri && cargo fmt -- --check
+      - name: Check Format
+        run: cd src-tauri && cargo fmt --check
 
-      - name: Clippy
+      - name: Clippy Lints
         run: cd src-tauri && cargo clippy -- -D warnings
 
-      - name: Run Rust Tests
+      - name: Run Tests
         run: cd src-tauri && cargo test
+
+  # ============================================================================
+  # BUILD: macOS
+  # ============================================================================
+  build-macos:
+    name: Build macOS
+    needs: [frontend-test, rust-test]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install macOS dependencies
+        run: |
+          brew installwebkit2gtk
+
+      - name: Build Tauri app
+        run: npm run tauri build -- --bundles dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auracap-macos
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+          retention-days: 7
+
+  # ============================================================================
+  # BUILD: Windows
+  # ============================================================================
+  build-windows:
+    name: Build Windows
+    needs: [frontend-test, rust-test]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        run: npm run tauri build -- --bundles msi,nsis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auracap-windows
+          path: src-tauri/target/release/bundle/msi/*.msi
+          retention-days: 7
+
+      - name: Upload NSIS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auracap-windows-nsis
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          retention-days: 7
+
+  # ============================================================================
+  # BUILD: Linux
+  # ============================================================================
+  build-linux:
+    name: Build Linux
+    needs: [frontend-test, rust-test]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        run: npm run tauri build -- --bundles deb,appimage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Deb Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auracap-linux-deb
+          path: src-tauri/target/release/bundle/deb/*.deb
+          retention-days: 7
+
+      - name: Upload AppImage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auracap-linux-appimage
+          path: src-tauri/target/release/bundle/appimage/*.AppImage
+          retention-days: 7
+
+  # ============================================================================
+  # SECURITY AUDIT
+  # ============================================================================
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Audit
+        run: |
+          cargo install cargo-audit
+          cargo audit
+
+  # ============================================================================
+  # RELEASE (on tag)
+  # ============================================================================
+  release:
+    name: Create Release
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare Release
+        id: prepare_release
+        run: |
+          echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+          # List artifacts
+          ls -la artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
+          generate_release_notes: true
+          files: |
+            artifacts/auracap-macos/*.dmg
+            artifacts/auracap-windows/*.msi
+            artifacts/auracap-windows-nsis/*.exe
+            artifacts/auracap-linux-deb/*.deb
+            artifacts/auracap-linux-appimage/*.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -33,6 +33,7 @@ Thank you for your interest in contributing to AuraCap! This document provides g
 
 1. **Fork the repository** and clone your fork
 2. **Create a branch** for your changes:
+
    ```bash
    git checkout -b feature/your-feature-name
    # or
@@ -46,6 +47,7 @@ Thank you for your interest in contributing to AuraCap! This document provides g
    - Update documentation as needed
 
 4. **Test and Lint your changes**:
+
    ```bash
    npm run lint         # Check formatting and linting
    npm run check        # Type checking
@@ -67,6 +69,7 @@ Thank you for your interest in contributing to AuraCap! This document provides g
      - `test: add tests`
 
 7. **Push to your fork**:
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -83,12 +86,14 @@ See the [README.md](README.md) for installation and setup instructions.
 ## Code Style
 
 ### TypeScript/Svelte
+
 - Use TypeScript for type safety
 - Follow Svelte best practices
 - Use meaningful variable and function names
 - Keep components focused and reusable
 
 ### Rust
+
 - Follow Rust conventions and idioms
 - Use `Result` types for error handling (avoid `unwrap()` in production code)
 - Add documentation comments for public APIs

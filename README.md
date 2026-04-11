@@ -1,80 +1,169 @@
 # AuraCap Network Analyzer
 
+<div align="center">
+
 [![CI](https://github.com/pallab-js/r-wire/actions/workflows/ci.yml/badge.svg)](https://github.com/pallab-js/r-wire/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#)
+[![Release](https://img.shields.io/github/v/release/pallab-js/r-wire?include_prereleases&label=latest)](#)
 
-A modern, high-performance network packet analyzer and forensic suite built with **Tauri**, **SvelteKit 5**, and **Rust**. AuraCap is designed as a professional, standalone, and local-first alternative to traditional network tools, offering deep technical introspection with a clean, interactive user experience.
+**Professional-grade network packet analyzer built for clarity, not complexity.**
 
-## 🚀 Professional Forensic Features
+_AuraCap is a modern, high-performance network forensics tool designed to make packet analysis accessible to everyone—from network administrators to security enthusiasts._
 
-### 🔍 Advanced Introspection
-- **Interactive Tree-Hex Mapping**: Synchronized protocol tree and hex view. Hovering over a field instantly highlights its raw binary representation.
-- **Conversational "Follow Stream"**: Reassemble bidirectional TCP and UDP conversations into clean request/response views.
-- **Intelligent Payload Inspectors**: Automatic local decoding and beautification for **JSON**, **JWT**, and plain-text payloads.
-- **Expert Info System**: Automatic deterministic detection of protocol anomalies (e.g., TCP Zero Window, Low TTL).
+</div>
 
-### 📊 Visual Storytelling
-- **Sequence Diagrams**: Visual ladder logic diagrams for conversational flows between clients and servers.
-- **Flow Timeline**: High-resolution temporal distribution of packets within a stream to identify bursts or latency.
-- **Network Topology Map**: Real-time macro-level conversational map of top network talkers.
-- **Shannon Entropy Analysis**: Algorithmic randomness calculation to identify encrypted or malicious payloads.
+---
 
-### 💼 Professional UI/UX
-- **Resizable Split-Pane Dashboard**: Fully adjustable vertical and horizontal layouts for a customized workspace.
-- **SQLite-Backed Virtualization**: Capable of handling millions of packets with a constant, lean memory footprint.
-- **Modern Dark Theme**: Optimized for long-term technical analysis with VS Code-inspired syntax highlighting.
+## Why AuraCap?
 
-## 🛡️ Core Philosophy: Independent & Standalone
-- **Local-First**: All dissection, reassembly, and intelligence logic happens 100% on your machine.
-- **Zero Cloud/AI**: Deterministic, verifiable algorithms based on RFC specifications. No external APIs, no tracking, no "black-box" models.
-- **Standalone Binary**: Native performance without Docker or container overhead.
-- **Private & Public Network Ready**: Works flawlessly in secure air-gapped environments or public networks.
+| Feature                | Wireshark                 | AuraCap                     |
+| ---------------------- | ------------------------- | --------------------------- |
+| Beginner-Friendly UI   | ❌ Complex menus          | ✅ Clean, focused interface |
+| Instant Packet Summary | ❌ Manual decoding        | ✅ Auto-generated narrative |
+| Modern Design          | ❌ Dated UI               | ✅ Warm minimal design      |
+| Local-First            | ✅                        | ✅                          |
+| No Dependencies        | ❌ Requires WinPcap/Npcap | ✅ Built-in (Tauri)         |
 
-## Prerequisites
+---
 
-- **Node.js** 18+ and npm
-- **Rust** (latest stable version)
-- **System Dependencies**:
-  - **macOS**: Xcode Command Line Tools
-  - **Linux**: `libpcap-dev` or equivalent
-  - **Windows**: Npcap
+## Quick Start
 
-## Installation & Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/pallab-js/r-wire.git
-   cd r-wire
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Run in development mode**:
-   ```bash
-   # Note: Packet capture usually requires sudo/admin privileges
-   sudo npm run tauri dev
-   ```
-
-## Technical Stack
-
-- **Frontend**: SvelteKit 5.x, TypeScript, Vitest
-- **Backend**: Rust (Tauri), `pcap`, `pnet`, `rusqlite`
-- **Database**: Local SQLite for high-performance indexing and pagination
-- **Styling**: Tailwind CSS (Tailwind 4)
-
-## Testing
-
-AuraCap maintains high technical integrity through a comprehensive automated test suite:
+### Download Pre-built Release
 
 ```bash
-# Run full automated test suite
-npm run test:unit && cd src-tauri && cargo test
+# macOS (DMG)
+# Download from: https://github.com/pallab-js/r-wire/releases
+
+# Linux (AppImage)
+chmod +x AuraCap*.AppImage && ./AuraCap*.AppImage
+
+# Windows (MSI/EXE)
+# Download and run the installer
 ```
+
+### Build from Source
+
+#### Prerequisites
+
+| OS      | Requirements              |
+| ------- | ------------------------- |
+| macOS   | Xcode Command Line Tools  |
+| Linux   | `libpcap-dev`, WebKit2GTK |
+| Windows | Npcap SDK                 |
+
+#### Build Steps
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/pallab-js/r-wire.git
+cd r-wire
+
+# 2. Install dependencies
+npm install
+
+# 3. Run in development mode
+sudo npm run tauri dev
+
+# 4. Build for production
+npm run tauri build
+```
+
+> ⚠️ **Note**: Packet capture requires elevated privileges. Run with `sudo` on macOS/Linux or as Administrator on Windows.
+
+---
+
+## Features
+
+### 🔍 For Beginners
+
+- **Essentials View** - Get instant packet summaries without deep protocol knowledge
+- **Natural Language Narrative** - Automatic plain-English explanation of each packet
+- **Smart Payload Detection** - Auto-detects and formats JSON, JWT, and text payloads
+
+### 📊 For Professionals
+
+- **Protocol Tree** - Full RFC-compliant packet dissection
+- **Hex View** - Raw byte inspection with highlighting
+- **Intelligence Panel** - Risk scores, entropy analysis, JA3 fingerprints
+- **Timeline View** - Temporal analysis of network flows
+
+### 🎨 Design Philosophy
+
+- **Warm Minimalism** - Designed to reduce eye strain during long sessions
+- **Keyboard Shortcuts** - Power user efficiency
+  - `Ctrl+F` - Focus filter
+  - `Ctrl+E` - Toggle statistics
+  - `Escape` - Clear selection
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
+│  │   Svelte    │  │  Tailwind   │  │      Chart.js       │ │
+│  │   (UI)      │  │   (Style)   │  │   (Statistics)     │ │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘ │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ Tauri IPC
+┌──────────────────────────┴──────────────────────────────────┐
+│                         Backend                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
+│  │   Rust      │  │    PCAP     │  │       SQLite        │ │
+│  │  (Core)     │  │ (Capture)   │  │    (Storage)        │ │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Development
+
+```bash
+# Run tests
+npm run test:unit && cd src-tauri && cargo test
+
+# Lint
+npm run lint
+
+# Type check
+npm run check
+
+# Format code
+npm run format
+```
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md).
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing`)
+5. Open a Pull Request
+
+---
 
 ## License
 
 Licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for upcoming features and future plans.
+
+---
+
+<div align="center">
+
+**Made with ❤️ by the AuraCap Team**
+
+</div>
