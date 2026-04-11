@@ -56,5 +56,5 @@ export function getFilteredPackets(packets: PacketSummary[], filter: string): Pa
   if (!filter || filter.trim() === '') {
     return packets;
   }
-  return packets.filter(packet => matchesFilter(packet, filter));
+  return packets.filter((packet) => matchesFilter(packet, filter));
 }

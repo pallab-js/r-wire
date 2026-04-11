@@ -5,6 +5,7 @@
 **AuraCap** is a local-first, cross-platform network packet analyzer and forensic suite built with **Tauri 1.x**, **SvelteKit 5**, and **Rust**. It serves as a standalone, professional-grade alternative to tools like Wireshark, offering deep protocol dissection, interactive hex/protocol tree mapping, TCP/UDP stream reassembly, SQLite-backed packet storage, and visual forensic features (sequence diagrams, flow timelines, entropy analysis).
 
 ### Key Design Principles
+
 - **Local-first**: All dissection, reassembly, and intelligence logic runs 100% on the machine. No cloud APIs, no external dependencies.
 - **Native performance**: Rust backend with `pcap` and `pnet` for packet capture and protocol parsing.
 - **Standalone binary**: No Docker or container overhead. Ships as a native desktop app.
@@ -12,15 +13,15 @@
 
 ## Technology Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | SvelteKit 5.x, TypeScript, Tailwind CSS 4, Chart.js |
-| **Backend** | Rust (Tauri 1.x), `pcap`, `pnet`, `tokio`, `rusqlite` |
-| **Database** | SQLite (local file, `capture.db`) |
-| **Testing** | Vitest + Testing Library (frontend), Rust unit tests (backend) |
-| **Linting** | ESLint + TypeScript ESLint + Svelte ESLint + Security ESLint |
-| **Formatting** | Prettier + Prettier Plugin Svelte |
-| **Build** | Vite 6, Tauri CLI |
+| Layer          | Technology                                                     |
+| -------------- | -------------------------------------------------------------- |
+| **Frontend**   | SvelteKit 5.x, TypeScript, Tailwind CSS 4, Chart.js            |
+| **Backend**    | Rust (Tauri 1.x), `pcap`, `pnet`, `tokio`, `rusqlite`          |
+| **Database**   | SQLite (local file, `capture.db`)                              |
+| **Testing**    | Vitest + Testing Library (frontend), Rust unit tests (backend) |
+| **Linting**    | ESLint + TypeScript ESLint + Svelte ESLint + Security ESLint   |
+| **Formatting** | Prettier + Prettier Plugin Svelte                              |
+| **Build**      | Vite 6, Tauri CLI                                              |
 
 ## Project Structure
 
@@ -73,6 +74,7 @@ r-wire/
 ## Building and Running
 
 ### Prerequisites
+
 - **Node.js 18+** and **npm**
 - **Rust** (latest stable)
 - **System dependencies**:
@@ -81,6 +83,7 @@ r-wire/
   - Windows: Npcap
 
 ### Development
+
 ```bash
 # Install dependencies
 npm install
@@ -94,6 +97,7 @@ npm run dev
 ```
 
 ### Production Build
+
 ```bash
 # Build the desktop application
 npm run tauri build
@@ -104,6 +108,7 @@ npm run preview
 ```
 
 ### Testing
+
 ```bash
 # Frontend unit tests
 npm run test:unit
@@ -119,6 +124,7 @@ npm run test:unit && cd src-tauri && cargo test
 ```
 
 ### Linting & Type Checking
+
 ```bash
 # Lint (Prettier + ESLint)
 npm run lint
@@ -132,6 +138,7 @@ npm run check:watch
 ```
 
 ### Security Auditing
+
 ```bash
 # Check npm vulnerabilities
 npm run audit
@@ -146,7 +153,9 @@ npm run audit:rust
 ## Architecture
 
 ### Frontend → Backend Communication
+
 The app uses **Tauri commands** (Rust functions exposed via `#[tauri::command]`) for all backend operations. Key commands:
+
 - `list_interfaces()` — List available network interfaces
 - `start_capture(interface_name, filter)` — Begin packet capture
 - `stop_capture()` — Stop active capture
@@ -159,11 +168,13 @@ The app uses **Tauri commands** (Rust functions exposed via `#[tauri::command]`)
 - `export_pcap_all(file_path)` — Export all packets
 
 ### State Management
+
 - **Svelte stores** (`src/lib/stores.ts`): Frontend reactive state (selected packet, highlighted ranges, etc.)
 - **Tauri state** (`AppState` in `lib.rs`): Rust-side state (stop signal channel, SQLite connection, flow table, rate limiter)
 - **SQLite database**: Persistent packet storage with WAL mode for write-heavy workloads
 
 ### Security Model
+
 - **CSP**: Strict Content Security Policy in `tauri.conf.json` — `script-src 'self'`, no `'unsafe-inline'` for scripts
 - **Allowlist**: Minimal Tauri permissions — only `shell-open` and `dialog-save`
 - **Rate limiting**: Capture operations are rate-limited (max 10/min, min 5s interval)
@@ -190,6 +201,7 @@ See `DESIGN.md` for the complete design system documentation.
 ## Coding Conventions
 
 ### TypeScript / Svelte
+
 - Use TypeScript for type safety
 - Follow Svelte 5 best practices (runes where applicable)
 - Components should be focused and single-purpose
@@ -197,6 +209,7 @@ See `DESIGN.md` for the complete design system documentation.
 - Meaningful variable and function names
 
 ### Rust
+
 - Follow Rust idioms and `clippy` recommendations
 - Use `Result` types for error handling — avoid `unwrap()` in production code
 - Add doc comments for public APIs
@@ -204,7 +217,9 @@ See `DESIGN.md` for the complete design system documentation.
 - Module organization: `capture.rs` (capture logic), `dissector.rs` (protocol parsing), `model.rs` (data structures), `state.rs` (flow tracking), `export.rs` (file export)
 
 ### Commit Messages
+
 Use conventional commit format:
+
 - `feat: add new feature`
 - `fix: resolve bug`
 - `docs: update documentation`
@@ -215,9 +230,11 @@ Use conventional commit format:
 ## Known Issues & Future Work
 
 ### Dependency Concerns
+
 - **npm**: `cookie@0.6.0` (via `@sveltejs/kit`) has a low-severity vulnerability. Waiting for upstream fix.
 - **Rust**: Tauri 1.x uses GTK3 ecosystem (unmaintained). Migration to Tauri 2.x (GTK4) recommended long-term.
 
 ### Platform Notes
+
 - Currently targets **macOS** primarily (`bundle.targets: ["app"]` in tauri.conf)
 - Windows and Linux support require additional testing and configuration

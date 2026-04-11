@@ -14,6 +14,9 @@
   });
 </script>
 
-<div class="h-screen w-screen flex flex-col overflow-hidden" style="background-color: var(--cursor-cream); color: var(--cursor-dark);">
+<div
+  class="h-screen w-screen flex flex-col overflow-hidden"
+  style="background-color: var(--cursor-cream); color: var(--cursor-dark);"
+>
   <slot />
 </div>

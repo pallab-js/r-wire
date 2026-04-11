@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Cached packet data with timestamp for efficient storage and retrieval.
 ///

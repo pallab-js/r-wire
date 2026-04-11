@@ -24,7 +24,7 @@ describe('statistics.ts', () => {
         dest_addr: '8.8.8.8',
         protocol: 'TCP',
         length: 100,
-        info: 'Test'
+        info: 'Test',
       },
       {
         id: 2,
@@ -33,22 +33,22 @@ describe('statistics.ts', () => {
         dest_addr: '1.1.1.1',
         protocol: 'UDP',
         length: 200,
-        info: 'Test'
-      }
+        info: 'Test',
+      },
     ];
 
     const updatedStats = updateStatistics(initialStats, mockPackets);
 
     expect(updatedStats.totalPackets).toBe(2);
     expect(updatedStats.totalBytes).toBe(300);
-    
-    const tcpStats = updatedStats.protocols.find(p => p.protocol === 'TCP');
+
+    const tcpStats = updatedStats.protocols.find((p) => p.protocol === 'TCP');
     expect(tcpStats?.count).toBe(1);
-    
-    const udpStats = updatedStats.protocols.find(p => p.protocol === 'UDP');
+
+    const udpStats = updatedStats.protocols.find((p) => p.protocol === 'UDP');
     expect(udpStats?.count).toBe(1);
-    
-    const topSource = updatedStats.topSources.find(s => s.address === '192.168.1.1');
+
+    const topSource = updatedStats.topSources.find((s) => s.address === '192.168.1.1');
     expect(topSource?.count).toBe(2);
   });
 
@@ -63,8 +63,8 @@ describe('statistics.ts', () => {
         dest_addr: 'B',
         protocol: 'TCP',
         length: 1000,
-        info: 'Test'
-      }
+        info: 'Test',
+      },
     ];
 
     const updatedStats = updateStatistics(initialStats, mockPackets);

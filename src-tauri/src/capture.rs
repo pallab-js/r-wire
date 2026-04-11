@@ -1,11 +1,16 @@
 use crate::dissector;
 use crate::model::PacketSummary;
 use crate::state::FlowTable;
-use std::sync::{Arc, Mutex, mpsc as std_mpsc};
+use rusqlite::Connection;
+use std::sync::{mpsc as std_mpsc, Arc, Mutex};
+use sysinfo::System;
+use tauri::Manager;
 use tokio::sync::mpsc as tokio_mpsc;
 use tokio::time::Instant;
-use tauri::Manager;
-use rusqlite::Connection;
+
+const MAX_PACKET_COUNT: u64 = 5_000_000;
+const MEMORY_WARNING_THRESHOLD: u64 = 7 * 1024 * 1024 * 1024;
+const MEMORY_CRITICAL_THRESHOLD: u64 = 7_500 * 1024 * 1024;
 
 pub async fn run_capture(
     app_handle: tauri::AppHandle,
@@ -15,9 +20,12 @@ pub async fn run_capture(
     db_conn: Arc<Mutex<Connection>>,
     flow_table: Arc<Mutex<FlowTable>>,
 ) -> Result<(), String> {
-    log::info!("Starting packet capture on interface: {} with filter: {:?}", interface_name, filter);
+    log::info!(
+        "Starting packet capture on interface: {} with filter: {:?}",
+        interface_name,
+        filter
+    );
 
-    // Open the capture device
     let mut cap = pcap::Capture::from_device(interface_name.as_str())
         .map_err(|e| {
             let err_str = e.to_string();
@@ -30,13 +38,16 @@ pub async fn run_capture(
             }
         })?
         .promisc(true)
-        .snaplen(65535)
-        .timeout(1000)
+        .snaplen(1600)
+        .timeout(500)
         .open()
         .map_err(|e| {
             let err_str = e.to_string();
             if err_str.contains("Permission denied") || err_str.contains("permission") {
-                log::error!("Permission denied when activating capture on: {}", interface_name);
+                log::error!(
+                    "Permission denied when activating capture on: {}",
+                    interface_name
+                );
                 "PermissionError".to_string()
             } else {
                 log::error!("Failed to activate capture on {}: {}", interface_name, e);
@@ -44,7 +55,6 @@ pub async fn run_capture(
             }
         })?;
 
-    // Apply BPF filter if provided
     if let Some(f) = filter {
         if let Err(e) = cap.filter(&f, true) {
             log::error!("Failed to apply BPF filter '{}': {}", f, e);
@@ -55,12 +65,11 @@ pub async fn run_capture(
     log::info!("Successfully opened capture device: {}", interface_name);
 
     let (packet_tx, packet_rx) = std_mpsc::channel::<(u64, Vec<u8>, i64)>();
-    
-    // Spawn blocking thread for packet capture
+
     let cap_handle = std::thread::spawn(move || {
         let mut cap = cap;
         let mut id_counter: u64 = 0;
-        
+
         loop {
             match cap.next_packet() {
                 Ok(packet) => {
@@ -84,12 +93,18 @@ pub async fn run_capture(
     let mut batch: Vec<PacketSummary> = Vec::new();
     let mut db_batch: Vec<(PacketSummary, Vec<u8>)> = Vec::new();
     let mut last_emit = Instant::now();
-    const BATCH_SIZE: usize = 50;
-    const DB_BATCH_SIZE: usize = 200;
-    const BATCH_TIMEOUT_MS: u64 = 250;
+    let mut total_packets_captured: u64 = 0;
+    let mut memory_warning_logged = false;
+    let mut auto_stop_triggered = false;
+    let mut sys = System::new();
+    const BATCH_SIZE: usize = 100;
+    const DB_BATCH_SIZE: usize = 500;
+    const BATCH_TIMEOUT_MS: u64 = 100;
 
     let insert_packets = |db: &mut Connection, packets: &Vec<(PacketSummary, Vec<u8>)>| {
-        if packets.is_empty() { return; }
+        if packets.is_empty() {
+            return;
+        }
         match db.transaction() {
             Ok(tx) => {
                 let mut success = true;
@@ -148,14 +163,23 @@ pub async fn run_capture(
                 loop {
                     match packet_rx.try_recv() {
                         Ok((packet_id, packet_data, timestamp_ns)) => {
+                            total_packets_captured += 1;
+
+                            if total_packets_captured > MAX_PACKET_COUNT || auto_stop_triggered {
+                                if !auto_stop_triggered {
+                                    log::warn!("Maximum packet count ({}) reached. Stopping capture.", MAX_PACKET_COUNT);
+                                    auto_stop_triggered = true;
+                                }
+                                break;
+                            }
+
                             if let Some(summary) = dissector::parse_summary(&packet_data, packet_id, timestamp_ns) {
-                                // Update flow table for connection tracking
                                 if let Some(key) = dissector::get_flow_key(&packet_data) {
                                     if let Ok(mut flows) = flow_table.lock() {
                                         flows.update(packet_id, timestamp_ns, summary.length, key);
                                     }
                                 }
-                                
+
                                 db_batch.push((summary.clone(), packet_data));
                                 batch.push(summary);
                             }
@@ -182,9 +206,31 @@ pub async fn run_capture(
                     }
                 }
 
-                let should_emit = batch.len() >= BATCH_SIZE || 
+                if total_packets_captured.is_multiple_of(500) {
+                    sys.refresh_memory();
+                    let used_memory = sys.used_memory();
+
+                    if used_memory > MEMORY_CRITICAL_THRESHOLD && !auto_stop_triggered {
+                        log::warn!(
+                            "Critical memory usage ({} bytes). Auto-stopping capture to prevent crash.",
+                            used_memory
+                        );
+                        auto_stop_triggered = true;
+                        let _ = app_handle.emit_all("capture_auto_stop", "Memory limit exceeded");
+                    } else if used_memory > MEMORY_WARNING_THRESHOLD && !memory_warning_logged {
+                        log::warn!(
+                            "High memory usage detected ({} bytes / {} MB). Consider stopping capture.",
+                            used_memory,
+                            used_memory / (1024 * 1024)
+                        );
+                        memory_warning_logged = true;
+                        let _ = app_handle.emit_all("memory_warning", used_memory);
+                    }
+                }
+
+                let should_emit = batch.len() >= BATCH_SIZE ||
                     last_emit.elapsed().as_millis() >= BATCH_TIMEOUT_MS as u128;
-                
+
                 if should_emit && !batch.is_empty() {
                     if !db_batch.is_empty() {
                         if let Ok(mut db) = db_conn.lock() {
@@ -199,6 +245,10 @@ pub async fn run_capture(
                     last_emit = Instant::now();
                 }
             }
+        }
+
+        if auto_stop_triggered {
+            break;
         }
     }
 

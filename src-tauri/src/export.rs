@@ -1,7 +1,7 @@
+use crate::model::PacketSummary;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
-use crate::model::PacketSummary;
 
 // PCAP Global Header (24 bytes)
 const PCAP_MAGIC: u32 = 0xA1B2C3D4;
@@ -48,12 +48,10 @@ pub fn export_pcap_db(
     packet_list: &[(PacketSummary, Vec<u8>, i64)],
     file_path: PathBuf,
 ) -> Result<(), String> {
-    let mut file = File::create(&file_path)
-        .map_err(|e| format!("Failed to create file: {}", e))?;
+    let mut file = File::create(&file_path).map_err(|e| format!("Failed to create file: {}", e))?;
 
     // Write PCAP global header
-    write_pcap_header(&mut file)
-        .map_err(|e| format!("Failed to write PCAP header: {}", e))?;
+    write_pcap_header(&mut file).map_err(|e| format!("Failed to write PCAP header: {}", e))?;
 
     // Write packets in order
     for (summary, data, timestamp_ns) in packet_list {

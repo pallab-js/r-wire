@@ -36,10 +36,10 @@ export function createEmptyStatistics(): Statistics {
 }
 
 // Internal state for incremental counting
-let protocolMap = new Map<string, { count: number; bytes: number }>();
-let sourceMap = new Map<string, number>();
-let destMap = new Map<string, number>();
-let timeSeriesMap = new Map<number, TimeSeriesData>();
+const protocolMap = new Map<string, { count: number; bytes: number }>();
+const sourceMap = new Map<string, number>();
+const destMap = new Map<string, number>();
+const timeSeriesMap = new Map<number, TimeSeriesData>();
 
 export function resetStatistics() {
   protocolMap.clear();
@@ -54,7 +54,7 @@ export function updateStatistics(current: Statistics, newPackets: PacketSummary[
   }
 
   let totalBytes = current.totalBytes;
-  let totalPackets = current.totalPackets + newPackets.length;
+  const totalPackets = current.totalPackets + newPackets.length;
 
   for (const packet of newPackets) {
     // Protocol stats
@@ -75,7 +75,7 @@ export function updateStatistics(current: Statistics, newPackets: PacketSummary[
     totalBytes += packet.length;
 
     // Time series (bucket by second)
-    const timeSec = Math.floor(packet.timestamp / 1_000_000_000); 
+    const timeSec = Math.floor(packet.timestamp / 1_000_000_000);
     const tsEntry = timeSeriesMap.get(timeSec) || { timestamp: timeSec, packets: 0, bytes: 0 };
     tsEntry.packets += 1;
     tsEntry.bytes += packet.length;

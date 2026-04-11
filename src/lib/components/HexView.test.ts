@@ -24,6 +24,6 @@ describe('HexView.svelte', () => {
 
     // The component should have applied highlighting via inline styles using OpenCode design system
     const highlightedByte = screen.getByText('48');
-    expect(highlightedByte.getAttribute('style')).toContain('background-color: var(--opencode-blue)');
+    expect(highlightedByte.getAttribute('style')).toContain('background-color: var(--color-read)');
   });
 });

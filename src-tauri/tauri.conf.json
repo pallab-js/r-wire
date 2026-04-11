@@ -7,7 +7,7 @@
     "withGlobalTauri": false
   },
   "package": {
-    "productName": "auracap",
+    "productName": "AuraCap",
     "version": "0.1.0"
   },
   "tauri": {
@@ -20,20 +20,26 @@
       "dialog": {
         "all": false,
         "save": true,
-        "open": false
+        "open": true
       }
     },
     "bundle": {
       "active": true,
-      "targets": ["app"],
-      "identifier": "com.pallabpc.auracap",
+      "targets": ["app", "dmg"],
+      "identifier": "com.auracap.app",
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",
         "icons/128x128@2x.png",
         "icons/icon.icns",
         "icons/icon.ico"
-      ]
+      ],
+      "category": "Developer Tool",
+      "shortDescription": "Professional network packet analyzer",
+      "longDescription": "AuraCap is a professional-grade network packet analyzer built with Rust and Tauri, featuring real-time packet capture, protocol dissection, and forensic analysis capabilities.",
+      "macOS": {
+        "minimumSystemVersion": "10.15"
+      }
     },
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'"
@@ -43,8 +49,11 @@
         "title": "AuraCap Network Analyzer",
         "width": 1200,
         "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "center": true
       }
     ]
   }

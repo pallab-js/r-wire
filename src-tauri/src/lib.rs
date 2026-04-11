@@ -1,18 +1,20 @@
-pub mod model;
-pub mod dissector;
 pub mod capture;
+pub mod dissector;
 pub mod export;
+pub mod model;
 pub mod state;
 
-use std::sync::Mutex;
-use tokio::sync::mpsc;
-use std::sync::Arc;
 use rusqlite::Connection;
 use state::FlowTable;
-use tauri::Manager;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Instant;
+use tauri::Manager;
+use tokio::sync::mpsc;
+
+type PacketBatchEntry = (i64, i64, String, String, String, i32, String, Vec<u8>);
 
 // Initialize logging
 #[cfg(not(debug_assertions))]
@@ -20,7 +22,7 @@ use log::LevelFilter;
 
 /// Rate limiter for capture operations to prevent DoS.
 pub struct CaptureRateLimiter {
-    last_capture_time: Mutex<Option<Instant>>,
+    first_capture_time: Mutex<Option<Instant>>,
     capture_count: AtomicUsize,
     max_captures_per_minute: usize,
     min_interval_seconds: u64,
@@ -29,7 +31,7 @@ pub struct CaptureRateLimiter {
 impl CaptureRateLimiter {
     fn new() -> Self {
         Self {
-            last_capture_time: Mutex::new(None),
+            first_capture_time: Mutex::new(None),
             capture_count: AtomicUsize::new(0),
             max_captures_per_minute: 10, // Max 10 captures per minute
             min_interval_seconds: 5,     // Min 5 seconds between captures
@@ -38,10 +40,13 @@ impl CaptureRateLimiter {
 
     fn check_rate_limit(&self) -> Result<(), String> {
         let now = Instant::now();
-        
-        // Check interval
-        if let Some(last_time) = self.last_capture_time.lock()
-            .map_err(|e| format!("Failed to lock rate limiter: {}", e))?.as_ref() 
+
+        // Check interval (min time between captures)
+        if let Some(last_time) = self
+            .first_capture_time
+            .lock()
+            .map_err(|e| format!("Failed to lock rate limiter: {}", e))?
+            .as_ref()
         {
             let elapsed = now.duration_since(*last_time).as_secs();
             if elapsed < self.min_interval_seconds {
@@ -51,27 +56,40 @@ impl CaptureRateLimiter {
                 ));
             }
         }
-        
-        // Check count (reset if more than a minute has passed)
+
+        // Check count (reset if more than a minute has passed since first capture in window)
         let count = self.capture_count.load(Ordering::Relaxed);
         if count >= self.max_captures_per_minute {
-            return Err("Rate limited: Too many capture attempts. Please wait a minute.".to_string());
+            return Err(
+                "Rate limited: Too many capture attempts. Please wait a minute.".to_string(),
+            );
         }
-        
+
         Ok(())
     }
 
     fn record_capture(&self) {
         let now = Instant::now();
-        if let Ok(mut last_time) = self.last_capture_time.lock() {
-            *last_time = Some(now);
-        }
-        
-        // Reset count if more than a minute has passed
-        let count = self.capture_count.load(Ordering::Relaxed);
-        if count >= self.max_captures_per_minute {
-            self.capture_count.store(0, Ordering::Relaxed);
-        } else {
+
+        let should_reset = {
+            if let Ok(mut first_time) = self.first_capture_time.lock() {
+                // Reset window if more than 60 seconds have passed
+                if let Some(t) = first_time.as_ref() {
+                    if now.duration_since(*t).as_secs() >= 60 {
+                        *first_time = Some(now);
+                        self.capture_count.store(1, Ordering::Relaxed);
+                        return;
+                    }
+                } else {
+                    *first_time = Some(now);
+                }
+                true
+            } else {
+                false
+            }
+        };
+
+        if should_reset {
             self.capture_count.fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -80,12 +98,12 @@ impl CaptureRateLimiter {
 /// Validates export path for new files (doesn't need to exist yet).
 fn validate_export_path_new(file_path: &str) -> Result<std::path::PathBuf, String> {
     let path = Path::new(file_path);
-    
+
     // Reject paths with null bytes
     if file_path.contains('\0') {
         return Err("Invalid file path: contains null bytes".to_string());
     }
-    
+
     // Reject paths attempting traversal
     if file_path.contains("..") {
         // Allow if it's the only component (relative path)
@@ -94,7 +112,7 @@ fn validate_export_path_new(file_path: &str) -> Result<std::path::PathBuf, Strin
             return Err("Path traversal detected: '..' not allowed".to_string());
         }
     }
-    
+
     // Validate file extension is .pcap
     if let Some(ext) = path.extension() {
         if ext.to_string_lossy().to_lowercase() != "pcap" {
@@ -103,7 +121,7 @@ fn validate_export_path_new(file_path: &str) -> Result<std::path::PathBuf, Strin
     } else {
         return Err("File must have .pcap extension".to_string());
     }
-    
+
     Ok(path.to_path_buf())
 }
 
@@ -113,11 +131,14 @@ fn validate_interface_name(name: &str) -> Result<(), String> {
     if name.is_empty() || name.len() > 256 {
         return Err("Interface name must be between 1 and 256 characters".to_string());
     }
-    
-    if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
+
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
         return Err("Interface name contains invalid characters".to_string());
     }
-    
+
     Ok(())
 }
 
@@ -127,15 +148,17 @@ fn validate_bpf_filter(filter: &str) -> Result<(), String> {
     if filter.len() > 1024 {
         return Err("BPF filter too long (max 1024 characters)".to_string());
     }
-    
+
     // Reject filters with shell metacharacters
-    let dangerous_chars = [';', '&', '|', '`', '$', '(', ')', '{', '}', '<', '>', '!', '\n', '\r'];
+    let dangerous_chars = [
+        ';', '&', '|', '`', '$', '(', ')', '{', '}', '<', '>', '!', '\n', '\r',
+    ];
     for ch in dangerous_chars {
         if filter.contains(ch) {
             return Err(format!("BPF filter contains invalid character: {}", ch));
         }
     }
-    
+
     Ok(())
 }
 
@@ -144,11 +167,11 @@ fn validate_packet_ids(ids: &[u64]) -> Result<(), String> {
     if ids.is_empty() {
         return Err("No packet IDs provided".to_string());
     }
-    
+
     if ids.len() > 100000 {
         return Err("Too many packet IDs (max 100,000)".to_string());
     }
-    
+
     Ok(())
 }
 
@@ -157,11 +180,11 @@ fn validate_pagination(offset: usize, limit: usize) -> Result<(), String> {
     if limit == 0 || limit > 10000 {
         return Err("Limit must be between 1 and 10,000".to_string());
     }
-    
+
     if offset > 1000000 {
         return Err("Offset too large (max 1,000,000)".to_string());
     }
-    
+
     Ok(())
 }
 
@@ -170,12 +193,12 @@ fn validate_filter(filter: &str) -> Result<(), String> {
     if filter.len() > 500 {
         return Err("Filter string too long (max 500 characters)".to_string());
     }
-    
+
     // Reject null bytes
     if filter.contains('\0') {
         return Err("Filter contains invalid characters".to_string());
     }
-    
+
     Ok(())
 }
 
@@ -196,18 +219,21 @@ async fn get_packets(
     offset: usize,
     limit: usize,
     filter: Option<String>,
-    state: tauri::State<'_, AppState>
+    state: tauri::State<'_, AppState>,
 ) -> Result<Vec<model::PacketSummary>, String> {
     // Validate pagination parameters
     validate_pagination(offset, limit)?;
-    
+
     // Validate filter if provided
     if let Some(ref f) = filter {
         validate_filter(f)?;
     }
-    
-    let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
-    
+
+    let db = state
+        .db_conn
+        .lock()
+        .map_err(|e| format!("Failed to lock db: {}", e))?;
+
     let (where_clause, params) = if let Some(f) = filter {
         build_filter_clause(&f)
     } else {
@@ -219,26 +245,31 @@ async fn get_packets(
         where_clause
     );
 
-    let mut stmt = db.prepare(&query).map_err(|e| format!("Prepare failed: {}", e))?;
-    
+    let mut stmt = db
+        .prepare(&query)
+        .map_err(|e| format!("Prepare failed: {}", e))?;
+
     // Convert Vec<String> to Vec<&dyn ToSql>
-    let mut sql_params: Vec<&dyn rusqlite::ToSql> = params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+    let mut sql_params: Vec<&dyn rusqlite::ToSql> =
+        params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
     let limit_i64 = limit as i64;
     let offset_i64 = offset as i64;
     sql_params.push(&limit_i64);
     sql_params.push(&offset_i64);
 
-    let packet_rows = stmt.query_map(&*sql_params, |row| {
-        Ok(model::PacketSummary {
-            id: row.get::<_, i64>(0)? as u64,
-            timestamp: row.get(1)?,
-            source_addr: row.get(2)?,
-            dest_addr: row.get(3)?,
-            protocol: row.get(4)?,
-            length: row.get(5)?,
-            info: row.get(6)?,
+    let packet_rows = stmt
+        .query_map(&*sql_params, |row| {
+            Ok(model::PacketSummary {
+                id: row.get::<_, i64>(0)? as u64,
+                timestamp: row.get(1)?,
+                source_addr: row.get(2)?,
+                dest_addr: row.get(3)?,
+                protocol: row.get(4)?,
+                length: row.get(5)?,
+                info: row.get(6)?,
+            })
         })
-    }).map_err(|e| format!("Query failed: {}", e))?;
+        .map_err(|e| format!("Query failed: {}", e))?;
 
     let mut packets = Vec::new();
     for packet in packet_rows {
@@ -252,15 +283,18 @@ async fn get_packets(
 #[tauri::command]
 async fn get_packet_count(
     filter: Option<String>,
-    state: tauri::State<'_, AppState>
+    state: tauri::State<'_, AppState>,
 ) -> Result<usize, String> {
     // Validate filter if provided
     if let Some(ref f) = filter {
         validate_filter(f)?;
     }
-    
-    let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
-    
+
+    let db = state
+        .db_conn
+        .lock()
+        .map_err(|e| format!("Failed to lock db: {}", e))?;
+
     let (where_clause, params) = if let Some(f) = filter {
         build_filter_clause(&f)
     } else {
@@ -268,12 +302,17 @@ async fn get_packet_count(
     };
 
     let query = format!("SELECT COUNT(*) FROM packets {}", where_clause);
-    let mut stmt = db.prepare(&query).map_err(|e| format!("Prepare failed: {}", e))?;
-    
-    let sql_params: Vec<&dyn rusqlite::ToSql> = params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-    
-    let count: i64 = stmt.query_row(&*sql_params, |row| row.get(0)).map_err(|e| format!("Count failed: {}", e))?;
-    
+    let mut stmt = db
+        .prepare(&query)
+        .map_err(|e| format!("Prepare failed: {}", e))?;
+
+    let sql_params: Vec<&dyn rusqlite::ToSql> =
+        params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+
+    let count: i64 = stmt
+        .query_row(&*sql_params, |row| row.get(0))
+        .map_err(|e| format!("Count failed: {}", e))?;
+
     Ok(count as usize)
 }
 
@@ -286,19 +325,31 @@ fn build_filter_clause(filter: &str) -> (String, Vec<String>) {
 
     if filter.starts_with("protocol:") {
         let val = filter.replace("protocol:", "").trim().to_string();
-        return ("WHERE protocol LIKE ?".to_string(), vec![format!("%{}%", val)]);
+        return (
+            "WHERE protocol LIKE ?".to_string(),
+            vec![format!("%{}%", val)],
+        );
     }
     if filter.starts_with("ip:") {
         let val = filter.replace("ip:", "").trim().to_string();
-        return ("WHERE source_addr LIKE ? OR dest_addr LIKE ?".to_string(), vec![format!("%{}%", val), format!("%{}%", val)]);
+        return (
+            "WHERE source_addr LIKE ? OR dest_addr LIKE ?".to_string(),
+            vec![format!("%{}%", val), format!("%{}%", val)],
+        );
     }
     if filter.starts_with("src:") {
         let val = filter.replace("src:", "").trim().to_string();
-        return ("WHERE source_addr LIKE ?".to_string(), vec![format!("%{}%", val)]);
+        return (
+            "WHERE source_addr LIKE ?".to_string(),
+            vec![format!("%{}%", val)],
+        );
     }
     if filter.starts_with("dst:") {
         let val = filter.replace("dst:", "").trim().to_string();
-        return ("WHERE dest_addr LIKE ?".to_string(), vec![format!("%{}%", val)]);
+        return (
+            "WHERE dest_addr LIKE ?".to_string(),
+            vec![format!("%{}%", val)],
+        );
     }
     if filter.starts_with("port:") {
         let val = filter.replace("port:", "").trim().to_string();
@@ -322,10 +373,8 @@ fn build_filter_clause(filter: &str) -> (String, Vec<String>) {
 #[tauri::command]
 fn list_interfaces() -> Result<Vec<String>, String> {
     match pcap::Device::list() {
-        Ok(devices) => {
-            Ok(devices.iter().map(|d| d.name.clone()).collect())
-        }
-        Err(e) => Err(format!("Failed to list interfaces: {}", e))
+        Ok(devices) => Ok(devices.iter().map(|d| d.name.clone()).collect()),
+        Err(e) => Err(format!("Failed to list interfaces: {}", e)),
     }
 }
 
@@ -339,21 +388,24 @@ async fn start_capture(
 ) -> Result<(), String> {
     // Validate interface name
     validate_interface_name(&interface_name)?;
-    
+
     // Validate BPF filter if provided
     if let Some(ref f) = filter {
         validate_bpf_filter(f)?;
     }
-    
+
     // Check rate limit
     state.rate_limiter.check_rate_limit()?;
-    
+
     // Check if already capturing
-    let mut stop_tx_guard = state.stop_tx.lock().map_err(|e| format!("Failed to lock state: {}", e))?;
+    let mut stop_tx_guard = state
+        .stop_tx
+        .lock()
+        .map_err(|e| format!("Failed to lock state: {}", e))?;
     if stop_tx_guard.is_some() {
         return Err("Capture already in progress".to_string());
     }
-    
+
     // Record this capture for rate limiting
     state.rate_limiter.record_capture();
 
@@ -364,10 +416,17 @@ async fn start_capture(
 
     // Clear packet table and flow table
     {
-        let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
-        db.execute("DELETE FROM packets", []).map_err(|e| format!("Failed to clear packets: {}", e))?;
-        
-        let mut flows = state.flow_table.lock().map_err(|e| format!("Failed to lock flow table: {}", e))?;
+        let db = state
+            .db_conn
+            .lock()
+            .map_err(|e| format!("Failed to lock db: {}", e))?;
+        db.execute("DELETE FROM packets", [])
+            .map_err(|e| format!("Failed to clear packets: {}", e))?;
+
+        let mut flows = state
+            .flow_table
+            .lock()
+            .map_err(|e| format!("Failed to lock flow table: {}", e))?;
         flows.clear();
     }
 
@@ -378,7 +437,16 @@ async fn start_capture(
     // Spawn the capture task
     let app_handle_clone = app_handle.clone();
     tokio::spawn(async move {
-        if let Err(e) = capture::run_capture(app_handle_clone, interface_name, filter, stop_rx, db_conn, flow_table).await {
+        if let Err(e) = capture::run_capture(
+            app_handle_clone,
+            interface_name,
+            filter,
+            stop_rx,
+            db_conn,
+            flow_table,
+        )
+        .await
+        {
             eprintln!("Capture error: {}", e);
         }
     });
@@ -388,41 +456,44 @@ async fn start_capture(
 
 /// Exports all packets from the database to a PCAP file.
 #[tauri::command]
-fn export_pcap_all(
-    file_path: String,
-    state: tauri::State<'_, AppState>
-) -> Result<usize, String> {
+fn export_pcap_all(file_path: String, state: tauri::State<'_, AppState>) -> Result<usize, String> {
     // Validate file path to prevent path traversal
     let path = validate_export_path_new(&file_path)?;
 
-    let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
+    let db = state
+        .db_conn
+        .lock()
+        .map_err(|e| format!("Failed to lock db: {}", e))?;
 
-    let mut stmt = db.prepare("SELECT id, timestamp_ns, data FROM packets ORDER BY id ASC").map_err(|e| format!("Prepare failed: {}", e))?;
-    
-    let rows = stmt.query_map([], |row| {
-        let id_i64: i64 = row.get(0)?;
-        let id = id_i64 as u64;
-        let timestamp_ns: i64 = row.get(1)?;
-        let data: Vec<u8> = row.get(2)?;
-        Ok((id, timestamp_ns, data))
-    }).map_err(|e| format!("Query failed: {}", e))?;
-    
+    let mut stmt = db
+        .prepare("SELECT id, timestamp_ns, data FROM packets ORDER BY id ASC")
+        .map_err(|e| format!("Prepare failed: {}", e))?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            let id_i64: i64 = row.get(0)?;
+            let id = id_i64 as u64;
+            let timestamp_ns: i64 = row.get(1)?;
+            let data: Vec<u8> = row.get(2)?;
+            Ok((id, timestamp_ns, data))
+        })
+        .map_err(|e| format!("Query failed: {}", e))?;
+
     let mut packet_list = Vec::new();
-    for row in rows {
-        if let Ok((id, timestamp_ns, data)) = row {
-            if let Some(summary) = dissector::parse_summary(&data, id, timestamp_ns) {
-                packet_list.push((summary, data, timestamp_ns));
-            }
+    for row in rows.flatten() {
+        let (id, timestamp_ns, data) = row;
+        if let Some(summary) = dissector::parse_summary(&data, id, timestamp_ns) {
+            packet_list.push((summary, data, timestamp_ns));
         }
     }
-    
+
     if packet_list.is_empty() {
         return Err("No packets found in database".to_string());
     }
-    
+
     let exported_count = packet_list.len();
     export::export_pcap_db(&packet_list, path)?;
-    
+
     Ok(exported_count)
 }
 
@@ -430,28 +501,38 @@ fn export_pcap_all(
 #[tauri::command]
 async fn get_flow_packets(
     packet_id: u64,
-    state: tauri::State<'_, AppState>
+    state: tauri::State<'_, AppState>,
 ) -> Result<Vec<model::PacketSummary>, String> {
     // Validate packet_id is not zero
     if packet_id == 0 {
         return Err("Invalid packet ID".to_string());
     }
-    
-    let flows = state.flow_table.lock().map_err(|e| format!("Failed to lock flow table: {}", e))?;
-    
+
+    let flows = state
+        .flow_table
+        .lock()
+        .map_err(|e| format!("Failed to lock flow table: {}", e))?;
+
     // Find the flow key for this packet ID
-    let flow_key = flows.flows.iter()
+    let flow_key = flows
+        .flows
+        .iter()
         .find(|(_, flow)| flow.packet_ids.contains(&packet_id))
         .map(|(key, _)| key.clone());
-    
+
     if let Some(key) = flow_key {
-        let flow = flows.flows.get(&key)
+        let flow = flows
+            .flows
+            .get(&key)
             .ok_or_else(|| "Flow data not found after lookup".to_string())?;
         let packet_ids = flow.packet_ids.clone();
         drop(flows); // Release lock
-        
-        let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
-        
+
+        let db = state
+            .db_conn
+            .lock()
+            .map_err(|e| format!("Failed to lock db: {}", e))?;
+
         let mut packet_list = Vec::new();
         // Fetch summaries for all IDs in this flow
         for chunk in packet_ids.chunks(999) {
@@ -460,27 +541,32 @@ async fn get_flow_packets(
                 "SELECT id, timestamp_ns, source_addr, dest_addr, protocol, length, info FROM packets WHERE id IN ({}) ORDER BY id ASC", 
                 placeholders
             );
-            let mut stmt = db.prepare(&query).map_err(|e| format!("Prepare failed: {}", e))?;
-            
+            let mut stmt = db
+                .prepare(&query)
+                .map_err(|e| format!("Prepare failed: {}", e))?;
+
             let i64_ids: Vec<i64> = chunk.iter().map(|&id| id as i64).collect();
-            let params: Vec<&dyn rusqlite::ToSql> = i64_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
-            
-            let rows = stmt.query_map(&*params, |row| {
-                Ok(model::PacketSummary {
-                    id: row.get::<_, i64>(0)? as u64,
-                    timestamp: row.get(1)?,
-                    source_addr: row.get(2)?,
-                    dest_addr: row.get(3)?,
-                    protocol: row.get(4)?,
-                    length: row.get(5)?,
-                    info: row.get(6)?,
+            let params: Vec<&dyn rusqlite::ToSql> = i64_ids
+                .iter()
+                .map(|id| id as &dyn rusqlite::ToSql)
+                .collect();
+
+            let rows = stmt
+                .query_map(&*params, |row| {
+                    Ok(model::PacketSummary {
+                        id: row.get::<_, i64>(0)? as u64,
+                        timestamp: row.get(1)?,
+                        source_addr: row.get(2)?,
+                        dest_addr: row.get(3)?,
+                        protocol: row.get(4)?,
+                        length: row.get(5)?,
+                        info: row.get(6)?,
+                    })
                 })
-            }).map_err(|e| format!("Query failed: {}", e))?;
-            
-            for row in rows {
-                if let Ok(summary) = row {
-                    packet_list.push(summary);
-                }
+                .map_err(|e| format!("Query failed: {}", e))?;
+
+            for row in rows.flatten() {
+                packet_list.push(row);
             }
         }
         Ok(packet_list)
@@ -493,26 +579,34 @@ async fn get_flow_packets(
 #[tauri::command]
 async fn get_stream_content(
     packet_id: u64,
-    state: tauri::State<'_, AppState>
+    state: tauri::State<'_, AppState>,
 ) -> Result<Vec<model::StreamMessage>, String> {
     // Validate packet_id is not zero
     if packet_id == 0 {
         return Err("Invalid packet ID".to_string());
     }
-    
-    let flows = state.flow_table.lock().map_err(|e| format!("Failed to lock flow table: {}", e))?;
-    
-    let flow_entry = flows.flows.iter()
+
+    let flows = state
+        .flow_table
+        .lock()
+        .map_err(|e| format!("Failed to lock flow table: {}", e))?;
+
+    let flow_entry = flows
+        .flows
+        .iter()
         .find(|(_, flow)| flow.packet_ids.contains(&packet_id));
-    
+
     if let Some((key, flow)) = flow_entry {
         let packet_ids = flow.packet_ids.clone();
         let flow_key = key.clone();
         drop(flows);
-        
-        let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
+
+        let db = state
+            .db_conn
+            .lock()
+            .map_err(|e| format!("Failed to lock db: {}", e))?;
         let mut messages: Vec<model::StreamMessage> = Vec::new();
-        
+
         // Fetch raw data for all packets in the flow
         for chunk in packet_ids.chunks(999) {
             let placeholders = vec!["?"; chunk.len()].join(",");
@@ -520,38 +614,50 @@ async fn get_stream_content(
                 "SELECT timestamp_ns, data, source_addr FROM packets WHERE id IN ({}) ORDER BY timestamp_ns ASC",
                 placeholders
             );
-            let mut stmt = db.prepare(&query).map_err(|e| format!("Prepare failed: {}", e))?;
-            
+            let mut stmt = db
+                .prepare(&query)
+                .map_err(|e| format!("Prepare failed: {}", e))?;
+
             let i64_ids: Vec<i64> = chunk.iter().map(|&id| id as i64).collect();
-            let params: Vec<&dyn rusqlite::ToSql> = i64_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
-            
-            let rows = stmt.query_map(&*params, |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?, row.get::<_, String>(2)?))
-            }).map_err(|e| format!("Query failed: {}", e))?;
-            
-            for row in rows {
-                if let Ok((ts, data, src_addr)) = row {
-                    if let Some(payload) = dissector::get_transport_payload(&data) {
-                        if payload.is_empty() { continue; }
-                        
-                        // Determine if this is client -> server
-                        // For canonicalized FlowKey, the first address in the 5-tuple is our "client" reference
-                        let is_client = src_addr == flow_key.src_ip.to_string();
-                        
-                        // Merge with last message if from same side
-                        if let Some(last) = messages.last_mut() {
-                            if last.is_client == is_client {
-                                last.data.extend(payload);
-                                continue;
-                            }
-                        }
-                        
-                        messages.push(model::StreamMessage {
-                            is_client,
-                            data: payload,
-                            timestamp: ts,
-                        });
+            let params: Vec<&dyn rusqlite::ToSql> = i64_ids
+                .iter()
+                .map(|id| id as &dyn rusqlite::ToSql)
+                .collect();
+
+            let rows = stmt
+                .query_map(&*params, |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, Vec<u8>>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                })
+                .map_err(|e| format!("Query failed: {}", e))?;
+
+            for row in rows.flatten() {
+                let (ts, data, src_addr) = row;
+                if let Some(payload) = dissector::get_transport_payload(&data) {
+                    if payload.is_empty() {
+                        continue;
                     }
+
+                    // Determine if this is client -> server
+                    // For canonicalized FlowKey, the first address in the 5-tuple is our "client" reference
+                    let is_client = src_addr == flow_key.src_ip.to_string();
+
+                    // Merge with last message if from same side
+                    if let Some(last) = messages.last_mut() {
+                        if last.is_client == is_client {
+                            last.data.extend(payload);
+                            continue;
+                        }
+                    }
+
+                    messages.push(model::StreamMessage {
+                        is_client,
+                        data: payload,
+                        timestamp: ts,
+                    });
                 }
             }
         }
@@ -564,9 +670,13 @@ async fn get_stream_content(
 /// Stops the currently active packet capture session.
 #[tauri::command]
 fn stop_capture(state: tauri::State<'_, AppState>) -> Result<(), String> {
-    let mut stop_tx_guard = state.stop_tx.lock().map_err(|e| format!("Failed to lock state: {}", e))?;
+    let mut stop_tx_guard = state
+        .stop_tx
+        .lock()
+        .map_err(|e| format!("Failed to lock state: {}", e))?;
     if let Some(tx) = stop_tx_guard.take() {
-        tx.try_send(()).map_err(|e| format!("Failed to send stop signal: {}", e))?;
+        tx.try_send(())
+            .map_err(|e| format!("Failed to send stop signal: {}", e))?;
     }
     Ok(())
 }
@@ -575,21 +685,28 @@ fn stop_capture(state: tauri::State<'_, AppState>) -> Result<(), String> {
 #[tauri::command]
 async fn get_packet_detail(
     id: u64,
-    state: tauri::State<'_, AppState>
+    state: tauri::State<'_, AppState>,
 ) -> Result<model::PacketDetail, String> {
     // Validate packet ID
     if id == 0 {
         return Err("Invalid packet ID".to_string());
     }
-    
-    let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
-    
+
+    let db = state
+        .db_conn
+        .lock()
+        .map_err(|e| format!("Failed to lock db: {}", e))?;
+
     let id_i64 = id as i64;
-    let mut stmt = db.prepare("SELECT data FROM packets WHERE id = ?1").map_err(|e| format!("Prepare failed: {}", e))?;
-    let packet_data: Option<Vec<u8>> = stmt.query_row([id_i64], |row| row.get(0)).ok();
-    
-    if let Some(data) = packet_data {
-        if let Some(detail) = dissector::dissect_packet(&data, id) {
+    let mut stmt = db
+        .prepare("SELECT data, timestamp_ns FROM packets WHERE id = ?1")
+        .map_err(|e| format!("Prepare failed: {}", e))?;
+    let packet: Option<(Vec<u8>, i64)> = stmt
+        .query_row([id_i64], |row| Ok((row.get(0)?, row.get(1)?)))
+        .ok();
+
+    if let Some((data, timestamp_ns)) = packet {
+        if let Some(detail) = dissector::dissect_packet(&data, id, timestamp_ns) {
             Ok(detail)
         } else {
             Err("Failed to dissect packet.".to_string())
@@ -604,52 +721,65 @@ async fn get_packet_detail(
 fn export_pcap(
     file_path: String,
     packet_ids: Vec<u64>,
-    state: tauri::State<'_, AppState>
+    state: tauri::State<'_, AppState>,
 ) -> Result<usize, String> {
     // Validate packet IDs
     validate_packet_ids(&packet_ids)?;
-    
+
     // Validate file path to prevent path traversal
     let path = validate_export_path_new(&file_path)?;
 
-    let db = state.db_conn.lock().map_err(|e| format!("Failed to lock db: {}", e))?;
-    
+    let db = state
+        .db_conn
+        .lock()
+        .map_err(|e| format!("Failed to lock db: {}", e))?;
+
     // Fetch packets from DB in chronological order
     let mut packet_list = Vec::new();
-    for chunk in packet_ids.chunks(999) { // SQLite bind limit is typically 999
+    for chunk in packet_ids.chunks(999) {
+        // SQLite bind limit is typically 999
         let placeholders = vec!["?"; chunk.len()].join(",");
-        let query = format!("SELECT id, timestamp_ns, data FROM packets WHERE id IN ({}) ORDER BY id ASC", placeholders);
-        let mut stmt = db.prepare(&query).map_err(|e| format!("Prepare failed: {}", e))?;
-        
+        let query = format!(
+            "SELECT id, timestamp_ns, data FROM packets WHERE id IN ({}) ORDER BY id ASC",
+            placeholders
+        );
+        let mut stmt = db
+            .prepare(&query)
+            .map_err(|e| format!("Prepare failed: {}", e))?;
+
         let i64_ids: Vec<i64> = chunk.iter().map(|&id| id as i64).collect();
-        let params: Vec<&dyn rusqlite::ToSql> = i64_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
-        
-        let rows = stmt.query_map(&*params, |row| {
-            let id_i64: i64 = row.get(0)?;
-            let id = id_i64 as u64;
-            let timestamp_ns: i64 = row.get(1)?;
-            let data: Vec<u8> = row.get(2)?;
-            Ok((id, timestamp_ns, data))
-        }).map_err(|e| format!("Query failed: {}", e))?;
-        
-        for row in rows {
-            if let Ok((id, timestamp_ns, data)) = row {
-                if let Some(summary) = dissector::parse_summary(&data, id, timestamp_ns) {
-                    packet_list.push((summary, data, timestamp_ns));
-                }
+        let params: Vec<&dyn rusqlite::ToSql> = i64_ids
+            .iter()
+            .map(|id| id as &dyn rusqlite::ToSql)
+            .collect();
+
+        let rows = stmt
+            .query_map(&*params, |row| {
+                let id_i64: i64 = row.get(0)?;
+                let id = id_i64 as u64;
+                let timestamp_ns: i64 = row.get(1)?;
+                let data: Vec<u8> = row.get(2)?;
+                Ok((id, timestamp_ns, data))
+            })
+            .map_err(|e| format!("Query failed: {}", e))?;
+
+        for row in rows.flatten() {
+            let (id, timestamp_ns, data) = row;
+            if let Some(summary) = dissector::parse_summary(&data, id, timestamp_ns) {
+                packet_list.push((summary, data, timestamp_ns));
             }
         }
     }
-    
+
     if packet_list.is_empty() {
         return Err("No valid packets found in database".to_string());
     }
-    
+
     packet_list.sort_by_key(|p| p.0.id);
-    
+
     let exported_count = packet_list.len();
     export::export_pcap_db(&packet_list, path)?;
-    
+
     Ok(exported_count)
 }
 
@@ -669,7 +799,7 @@ fn init_db(_app_handle: &tauri::AppHandle) -> Result<Connection, Box<dyn std::er
         }
         root_dir.join("capture.db")
     };
-    
+
     log::info!("Initializing database at: {:?}", db_path);
 
     let conn = Connection::open(&db_path)?;
@@ -705,16 +835,160 @@ fn init_db(_app_handle: &tauri::AppHandle) -> Result<Connection, Box<dyn std::er
     )?;
 
     // Create an index on id for fast pagination
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_packets_id ON packets(id)", [])?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_packets_id ON packets(id)",
+        [],
+    )?;
 
     // Optimizations for write-heavy workload
-    conn.execute_batch("
+    conn.execute_batch(
+        "
         PRAGMA journal_mode = WAL;
         PRAGMA synchronous = NORMAL;
         PRAGMA temp_store = MEMORY;
-    ")?;
+    ",
+    )?;
 
     Ok(conn)
+}
+
+fn validate_import_path(file_path: &str) -> Result<std::path::PathBuf, String> {
+    let path = Path::new(file_path);
+
+    if file_path.contains('\0') {
+        return Err("Invalid file path: contains null bytes".to_string());
+    }
+
+    if file_path.contains("..") {
+        let normalized = file_path.replace("..", "");
+        if normalized.is_empty() || normalized.chars().all(|c| c == '/' || c == '\\') {
+            return Err("Path traversal detected: '..' not allowed".to_string());
+        }
+    }
+
+    if let Some(ext) = path.extension() {
+        let ext_lower = ext.to_string_lossy().to_lowercase();
+        if ext_lower != "pcap" && ext_lower != "pcapng" && ext_lower != "cap" {
+            return Err("File must have .pcap, .pcapng, or .cap extension".to_string());
+        }
+    } else {
+        return Err("File must have .pcap, .pcapng, or .cap extension".to_string());
+    }
+
+    if !path.exists() {
+        return Err("File does not exist".to_string());
+    }
+
+    if !path.is_file() {
+        return Err("Path is not a file".to_string());
+    }
+
+    Ok(path.to_path_buf())
+}
+
+#[tauri::command]
+fn import_pcap(file_path: String, state: tauri::State<'_, AppState>) -> Result<usize, String> {
+    let path = validate_import_path(&file_path)?;
+
+    let mut capture = pcap::Capture::from_file(path.as_path())
+        .map_err(|e| format!("Failed to read PCAP file: {}", e))?;
+
+    let linktype = capture.get_datalink();
+    if linktype.0 != 1 {
+        return Err(format!(
+            "Unsupported link type: {}. Only Ethernet (DLT_EN10MB) is supported.",
+            linktype.0
+        ));
+    }
+
+    let mut db = state
+        .db_conn
+        .lock()
+        .map_err(|e| format!("Failed to lock db: {}", e))?;
+
+    db.execute("DELETE FROM packets", [])
+        .map_err(|e| format!("Failed to clear packets: {}", e))?;
+
+    {
+        let mut flows = state
+            .flow_table
+            .lock()
+            .map_err(|e| format!("Failed to lock flow table: {}", e))?;
+        flows.clear();
+    }
+
+    let mut packet_count = 0u64;
+    let mut packet_id = 0u64;
+    let mut batch: Vec<PacketBatchEntry> = Vec::new();
+    const BATCH_SIZE: usize = 500;
+
+    loop {
+        match capture.next_packet() {
+            Ok(packet) => {
+                packet_id += 1;
+                let data = packet.data.to_vec();
+                let timestamp_ns = packet.header.ts.tv_sec * 1_000_000_000
+                    + (packet.header.ts.tv_usec as i64) * 1_000;
+
+                if let Some(summary) = dissector::parse_summary(&data, packet_id, timestamp_ns) {
+                    let data_clone = data.clone();
+                    batch.push((
+                        packet_id as i64,
+                        timestamp_ns,
+                        summary.source_addr,
+                        summary.dest_addr,
+                        summary.protocol,
+                        summary.length as i32,
+                        summary.info,
+                        data,
+                    ));
+
+                    if let Some(key) = dissector::get_flow_key(&data_clone) {
+                        if let Ok(mut flows) = state.flow_table.lock() {
+                            flows.update(packet_id, timestamp_ns, summary.length, key);
+                        }
+                    }
+
+                    if batch.len() >= BATCH_SIZE {
+                        insert_batch(&mut db, &batch)?;
+                        packet_count += batch.len() as u64;
+                        batch.clear();
+                    }
+                }
+            }
+            Err(pcap::Error::TimeoutExpired) => continue,
+            Err(_) => break,
+        }
+    }
+
+    if !batch.is_empty() {
+        insert_batch(&mut db, &batch)?;
+        packet_count += batch.len() as u64;
+    }
+
+    log::info!("Imported {} packets from PCAP file", packet_count);
+    Ok(packet_count as usize)
+}
+
+fn insert_batch(db: &mut Connection, batch: &[PacketBatchEntry]) -> Result<(), String> {
+    match db.transaction() {
+        Ok(tx) => {
+            let mut stmt = tx.prepare_cached(
+                "INSERT INTO packets (id, timestamp_ns, source_addr, dest_addr, protocol, length, info, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+            ).map_err(|e| format!("Prepare failed: {}", e))?;
+
+            for (id, ts, src, dst, proto, len, info, data) in batch {
+                stmt.execute(rusqlite::params![id, ts, src, dst, proto, len, info, data])
+                    .map_err(|e| format!("Insert failed: {}", e))?;
+            }
+
+            drop(stmt);
+            tx.commit().map_err(|e| format!("Commit failed: {}", e))?;
+        }
+        Err(e) => return Err(format!("Transaction failed: {}", e)),
+    }
+
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -734,7 +1008,7 @@ pub fn run() {
     }
 
     log::info!("Starting AuraCap Network Analyzer");
-    
+
     tauri::Builder::default()
         .setup(|app| {
             let handle = app.handle();
@@ -758,7 +1032,8 @@ pub fn run() {
             get_packets,
             get_packet_count,
             get_flow_packets,
-            get_stream_content
+            get_stream_content,
+            import_pcap
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {

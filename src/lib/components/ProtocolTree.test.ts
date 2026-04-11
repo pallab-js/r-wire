@@ -10,15 +10,13 @@ describe('ProtocolTree.svelte', () => {
       name: 'Ethernet',
       fields: [
         { name: 'Destination', value: 'ff:ff:ff:ff:ff:ff', range: [0, 6], expert: null },
-        { name: 'Source', value: '00:11:22:33:44:55', range: [6, 12], expert: null }
-      ]
+        { name: 'Source', value: '00:11:22:33:44:55', range: [6, 12], expert: null },
+      ],
     },
     {
       name: 'IPv4',
-      fields: [
-        { name: 'TTL', value: '64', range: [22, 23], expert: 'Low TTL' }
-      ]
-    }
+      fields: [{ name: 'TTL', value: '64', range: [22, 23], expert: 'Low TTL' }],
+    },
   ];
 
   it('should render protocol layers and fields', () => {

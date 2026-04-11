@@ -1,11 +1,21 @@
 <script lang="ts">
   import { listen } from '@tauri-apps/api/event';
   import { invoke } from '@tauri-apps/api/tauri';
-  import { selectedPacket, selectedStream, captureError, addPackets, totalFilteredCount, debouncedFilter, packetList, type PacketSummary, type PacketDetail, type StreamMessage } from '../stores';
+  import {
+    selectedPacket,
+    selectedStream,
+    captureError,
+    addPackets,
+    totalFilteredCount,
+    debouncedFilter,
+    type PacketSummary,
+    type PacketDetail,
+    type StreamMessage,
+  } from '../stores';
   import { onMount } from 'svelte';
 
   let selectedId: number | null = null;
-  
+
   // Context Menu state
   let contextMenuVisible = false;
   let contextMenuPos = { x: 0, y: 0 };
@@ -13,11 +23,12 @@
   let contextMenuProtocol: string | null = null;
 
   // Derive if current context menu packet is a stream-capable protocol
-  $: isStream = contextMenuProtocol?.toLowerCase() === 'tcp' || contextMenuProtocol?.toLowerCase() === 'udp';
+  $: isStream =
+    contextMenuProtocol?.toLowerCase() === 'tcp' || contextMenuProtocol?.toLowerCase() === 'udp';
 
   // Local cache for current window of packets
   let visiblePackets: PacketSummary[] = [];
-  
+
   // Timestamp formatting cache
   const timestampCache = new Map<number, string>();
 
@@ -25,12 +36,15 @@
   let scrollTop = 0;
   let clientHeight = 600;
   const ROW_HEIGHT = 28; // Fixed height per row
-  const OVERSCAN = 30;   // Render 30 rows above/below
+  const OVERSCAN = 30; // Render 30 rows above/below
 
   $: totalPacketsCount = $totalFilteredCount;
   $: startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
-  $: endIndex = Math.min(totalPacketsCount, Math.floor((scrollTop + clientHeight) / ROW_HEIGHT) + OVERSCAN);
-  
+  $: endIndex = Math.min(
+    totalPacketsCount,
+    Math.floor((scrollTop + clientHeight) / ROW_HEIGHT) + OVERSCAN,
+  );
+
   $: paddingTop = startIndex * ROW_HEIGHT;
   $: paddingBottom = Math.max(0, (totalPacketsCount - endIndex) * ROW_HEIGHT);
 
@@ -41,15 +55,15 @@
     const offset = startIndex;
     const limit = Math.max(0, endIndex - startIndex);
     const filter = $debouncedFilter;
-    
+
     if (limit > 0) {
       invoke<PacketSummary[]>('get_packets', { offset, limit, filter: filter || null })
-        .then(packets => {
+        .then((packets) => {
           if (fetchId === currentFetchId) {
             visiblePackets = packets;
           }
         })
-        .catch(err => console.error('Failed to fetch packets:', err));
+        .catch((err) => console.error('Failed to fetch packets:', err));
     } else {
       visiblePackets = [];
     }
@@ -59,19 +73,19 @@
   $: {
     const filter = $debouncedFilter;
     invoke<number>('get_packet_count', { filter: filter || null })
-      .then(count => {
+      .then((count) => {
         totalFilteredCount.set(count);
       })
-      .catch(err => console.error('Failed to get count:', err));
+      .catch((err) => console.error('Failed to get count:', err));
   }
 
   onMount(() => {
     let unlistenFn: (() => void) | null = null;
-    
-    listen('new_packet_batch', (event: any) => {
+
+    listen('new_packet_batch', (event) => {
       const newPackets = event.payload as PacketSummary[];
       addPackets(newPackets);
-    }).then(fn => {
+    }).then((fn) => {
       unlistenFn = fn;
     });
 
@@ -89,7 +103,7 @@
       if (detail) {
         selectedPacket.set(detail);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to get packet detail:', error);
     }
   }
@@ -108,23 +122,25 @@
 
   async function followStream() {
     if (contextMenuPacketId === null) return;
-    
+
     // Only allow for TCP/UDP
     if (!isStream) {
-      captureError.set("Follow Stream is only supported for TCP and UDP traffic.");
+      captureError.set('Follow Stream is only supported for TCP and UDP traffic.');
       setTimeout(() => captureError.set(null), 3000);
       closeContextMenu();
       return;
     }
 
     try {
-      captureError.set("Reassembling stream...");
-      const messages = await invoke<StreamMessage[]>('get_stream_content', { packetId: contextMenuPacketId });
+      captureError.set('Reassembling stream...');
+      const messages = await invoke<StreamMessage[]>('get_stream_content', {
+        packetId: contextMenuPacketId,
+      });
       if (messages && messages.length > 0) {
         selectedStream.set(messages);
         captureError.set(null);
       } else {
-        captureError.set("No conversational data found for this packet.");
+        captureError.set('No conversational data found for this packet.');
         setTimeout(() => captureError.set(null), 3000);
       }
     } catch (err) {
@@ -137,25 +153,25 @@
   function formatTimestamp(timestamp: number): string {
     if (!timestamp || timestamp <= 0) return '00:00:00.000';
     if (timestampCache.has(timestamp)) return timestampCache.get(timestamp)!;
-    
+
     try {
       const date = new Date(timestamp / 1000000);
       if (isNaN(date.getTime())) return '00:00:00.000';
-      const formatted = date.toLocaleTimeString('en-US', { 
-        hour12: false, 
-        hour: '2-digit', 
-        minute: '2-digit', 
+      const formatted = date.toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
         second: '2-digit',
-        fractionalSecondDigits: 3
+        fractionalSecondDigits: 3,
       });
-      
+
       if (timestampCache.size > 10000) {
         const firstKey = timestampCache.keys().next().value;
         if (firstKey !== undefined) timestampCache.delete(firstKey);
       }
       timestampCache.set(timestamp, formatted);
       return formatted;
-    } catch (e) {
+    } catch {
       return '00:00:00.000';
     }
   }
@@ -188,15 +204,39 @@
   tabindex="0"
 >
   <table class="w-full border-collapse text-sm min-w-max" style="font-family: var(--font-mono);">
-    <thead class="sticky top-0 z-10 shadow-sm" style="background-color: var(--surface-200); border-bottom: 1px solid var(--border-primary);">
+    <thead
+      class="sticky top-0 z-10 shadow-sm"
+      style="background-color: var(--surface-200); border-bottom: 1px solid var(--border-primary);"
+    >
       <tr>
-        <th class="w-[80px] min-w-[80px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase" style="color: rgba(38, 37, 30, 0.55);">No.</th>
-        <th class="w-[140px] min-w-[140px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase" style="color: rgba(38, 37, 30, 0.55);">Time</th>
-        <th class="w-[200px] min-w-[150px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase" style="color: rgba(38, 37, 30, 0.55);">Source</th>
-        <th class="w-[200px] min-w-[150px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase" style="color: rgba(38, 37, 30, 0.55);">Destination</th>
-        <th class="w-[100px] min-w-[100px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase" style="color: rgba(38, 37, 30, 0.55);">Protocol</th>
-        <th class="w-[80px] min-w-[80px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase" style="color: rgba(38, 37, 30, 0.55);">Length</th>
-        <th class="min-w-[300px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase" style="color: rgba(38, 37, 30, 0.55);">Info</th>
+        <th
+          class="w-[80px] min-w-[80px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
+          style="color: rgba(38, 37, 30, 0.55);">No.</th
+        >
+        <th
+          class="w-[140px] min-w-[140px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
+          style="color: rgba(38, 37, 30, 0.55);">Time</th
+        >
+        <th
+          class="w-[200px] min-w-[150px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
+          style="color: rgba(38, 37, 30, 0.55);">Source</th
+        >
+        <th
+          class="w-[200px] min-w-[150px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
+          style="color: rgba(38, 37, 30, 0.55);">Destination</th
+        >
+        <th
+          class="w-[100px] min-w-[100px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
+          style="color: rgba(38, 37, 30, 0.55);">Protocol</th
+        >
+        <th
+          class="w-[80px] min-w-[80px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
+          style="color: rgba(38, 37, 30, 0.55);">Length</th
+        >
+        <th
+          class="min-w-[300px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
+          style="color: rgba(38, 37, 30, 0.55);">Info</th
+        >
       </tr>
     </thead>
     <tbody>
@@ -210,17 +250,48 @@
         {@const colorClasses = getProtocolColor(packet.protocol)}
         <tr
           class="cursor-pointer hover:bg-[var(--surface-300)] group"
-          style="background-color: {selectedId === packet.id ? 'var(--surface-400)' : 'var(--cursor-cream)'};"
+          style="background-color: {selectedId === packet.id
+            ? 'var(--surface-400)'
+            : 'var(--cursor-cream)'};"
           on:click={() => selectPacket(packet)}
           on:contextmenu={(e) => handleContextMenu(e, packet)}
         >
-          <td class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--cursor-dark)]" style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);">{packet.id}</td>
-          <td class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--cursor-dark)]" style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);">{formatTimestamp(packet.timestamp)}</td>
-          <td class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-medium" style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);">{packet.source_addr}</td>
-          <td class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-medium" style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);">{packet.dest_addr}</td>
-          <td class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-bold {colorClasses.split(' ')[0]}" style="border-color: var(--border-primary);">{packet.protocol}</td>
-          <td class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--cursor-dark)]" style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);">{packet.length}</td>
-          <td class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px]" style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);" title={packet.info}>{packet.info}</td>
+          <td
+            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--cursor-dark)]"
+            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
+            >{packet.id}</td
+          >
+          <td
+            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--cursor-dark)]"
+            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
+            >{formatTimestamp(packet.timestamp)}</td
+          >
+          <td
+            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-medium"
+            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
+            >{packet.source_addr}</td
+          >
+          <td
+            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-medium"
+            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
+            >{packet.dest_addr}</td
+          >
+          <td
+            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-bold {colorClasses.split(
+              ' ',
+            )[0]}"
+            style="border-color: var(--border-primary);">{packet.protocol}</td
+          >
+          <td
+            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--cursor-dark)]"
+            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
+            >{packet.length}</td
+          >
+          <td
+            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px]"
+            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
+            title={packet.info}>{packet.info}</td
+          >
         </tr>
       {/each}
 
@@ -233,7 +304,10 @@
   </table>
 
   {#if totalPacketsCount === 0}
-    <div class="absolute top-[50px] left-0 right-0 p-8 text-center italic" style="color: rgba(38, 37, 30, 0.55);">
+    <div
+      class="absolute top-[50px] left-0 right-0 p-8 text-center italic"
+      style="color: rgba(38, 37, 30, 0.55);"
+    >
       {#if $totalFilteredCount > 0}
         No packets match the current filter.
       {:else}
@@ -258,9 +332,23 @@
         disabled={!isStream}
         class="w-full text-left px-4 py-2 hover:not-disabled:bg-[var(--surface-300)] hover:not-disabled:text-[var(--cursor-dark)] bg-transparent border-none text-sm flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed transition-colors"
         style="color: {isStream ? 'var(--cursor-dark)' : 'rgba(38, 37, 30, 0.3)'};"
-        title={isStream ? "Follow Stream" : "Follow Stream (TCP/UDP only)"}
+        title={isStream ? 'Follow Stream' : 'Follow Stream (TCP/UDP only)'}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 11V7a5 5 0 0 1 10 0v4"/><rect x="3" y="11" width="18" height="11" rx="2"/><circle cx="12" cy="16" r="2"/></svg>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          ><path d="M7 11V7a5 5 0 0 1 10 0v4" /><rect
+            x="3"
+            y="11"
+            width="18"
+            height="11"
+            rx="2"
+          /><circle cx="12" cy="16" r="2" /></svg
+        >
         Follow Stream
       </button>
     </div>
