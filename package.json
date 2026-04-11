@@ -6,7 +6,7 @@
   "author": "AuraCap Team",
   "repository": {
     "type": "git",
-    "url": "https://github.com/user/auracap.git"
+    "url": "https://github.com/pallab-js/r-wire.git"
   },
   "scripts": {
     "dev": "vite dev",

@@ -75,26 +75,24 @@ npm run tauri build
 
 ## Features
 
-### 🔍 For Beginners
+### For Beginners
 
 - **Essentials View** - Get instant packet summaries without deep protocol knowledge
 - **Natural Language Narrative** - Automatic plain-English explanation of each packet
 - **Smart Payload Detection** - Auto-detects and formats JSON, JWT, and text payloads
 
-### 📊 For Professionals
+### For Professionals
 
 - **Protocol Tree** - Full RFC-compliant packet dissection
 - **Hex View** - Raw byte inspection with highlighting
-- **Intelligence Panel** - Risk scores, entropy analysis, JA3 fingerprints
-- **Timeline View** - Temporal analysis of network flows
+- **Artifacts Export** - Export individual packets and artifacts (PDF, JPG, PNG)
+- **Follow Stream** - Reassembled TCP/UDP stream view
+- **Statistics Panel** - Traffic rate charts, protocol distribution, top talkers
 
-### 🎨 Design Philosophy
+### Design Philosophy
 
 - **Warm Minimalism** - Designed to reduce eye strain during long sessions
-- **Keyboard Shortcuts** - Power user efficiency
-  - `Ctrl+F` - Focus filter
-  - `Ctrl+E` - Toggle statistics
-  - `Escape` - Clear selection
+- **Theme Toggle** - Light/dark mode support
 
 ---
 
