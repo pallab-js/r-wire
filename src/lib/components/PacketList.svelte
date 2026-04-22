@@ -182,19 +182,19 @@
 
   function getProtocolColor(protocol: string) {
     const p = protocol.toLowerCase();
-    if (p === 'tcp') return 'text-[var(--color-read)]';
-    if (p === 'udp') return 'text-[var(--color-thinking)]';
-    if (p === 'icmp' || p === 'icmpv6') return 'text-[var(--color-success)]';
-    if (p === 'arp') return 'text-[var(--color-edit)]';
-    if (p === 'dns') return 'text-[var(--color-success)]';
-    if (p === 'http' || p === 'https') return 'text-[var(--cursor-dark)]';
-    return 'text-[rgba(38,37,30,0.55)]';
+    if (p === 'tcp') return 'text-blue-400';
+    if (p === 'udp') return 'text-orange-400';
+    if (p === 'icmp' || p === 'icmpv6') return 'text-[var(--brand-green)]';
+    if (p === 'arp') return 'text-purple-400';
+    if (p === 'dns') return 'text-[var(--brand-green)]';
+    if (p === 'http' || p === 'https') return 'text-[var(--text-primary)]';
+    return 'text-[var(--text-muted)]';
   }
 </script>
 
 <div
   class="flex-1 overflow-y-auto overflow-x-auto h-full relative"
-  style="background-color: var(--cursor-cream);"
+  style="background-color: var(--bg-page);"
   on:scroll={handleScroll}
   on:click={closeContextMenu}
   on:keydown={(e) => e.key === 'Escape' && closeContextMenu()}
@@ -205,37 +205,37 @@
 >
   <table class="w-full border-collapse text-sm min-w-max" style="font-family: var(--font-mono);">
     <thead
-      class="sticky top-0 z-10 shadow-sm"
-      style="background-color: var(--surface-200); border-bottom: 1px solid var(--border-primary);"
+      class="sticky top-0 z-10"
+      style="background-color: var(--border-standard); border-bottom: 1px solid var(--border-standard);"
     >
       <tr>
         <th
           class="w-[80px] min-w-[80px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
-          style="color: rgba(38, 37, 30, 0.55);">No.</th
+          style="color: var(--text-muted);">No.</th
         >
         <th
           class="w-[140px] min-w-[140px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
-          style="color: rgba(38, 37, 30, 0.55);">Time</th
+          style="color: var(--text-muted);">Time</th
         >
         <th
           class="w-[200px] min-w-[150px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
-          style="color: rgba(38, 37, 30, 0.55);">Source</th
+          style="color: var(--text-muted);">Source</th
         >
         <th
           class="w-[200px] min-w-[150px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
-          style="color: rgba(38, 37, 30, 0.55);">Destination</th
+          style="color: var(--text-muted);">Destination</th
         >
         <th
           class="w-[100px] min-w-[100px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
-          style="color: rgba(38, 37, 30, 0.55);">Protocol</th
+          style="color: var(--text-muted);">Protocol</th
         >
         <th
           class="w-[80px] min-w-[80px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
-          style="color: rgba(38, 37, 30, 0.55);">Length</th
+          style="color: var(--text-muted);">Length</th
         >
         <th
           class="min-w-[300px] px-3 py-2 text-left font-medium text-xs tracking-wider uppercase"
-          style="color: rgba(38, 37, 30, 0.55);">Info</th
+          style="color: var(--text-muted);">Info</th
         >
       </tr>
     </thead>
@@ -249,47 +249,46 @@
       {#each visiblePackets as packet (packet.id)}
         {@const colorClasses = getProtocolColor(packet.protocol)}
         <tr
-          class="cursor-pointer hover:bg-[var(--surface-300)] group"
+          class="cursor-pointer hover:bg-[var(--border-standard)] group"
           style="background-color: {selectedId === packet.id
-            ? 'var(--surface-400)'
-            : 'var(--cursor-cream)'};"
+            ? 'var(--border-prominent)'
+            : 'transparent'};"
           on:click={() => selectPacket(packet)}
           on:contextmenu={(e) => handleContextMenu(e, packet)}
         >
           <td
-            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--cursor-dark)]"
-            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
-            >{packet.id}</td
+            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--text-primary)]"
+            style="color: var(--text-muted); border-color: var(--border-subtle);">{packet.id}</td
           >
           <td
-            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--cursor-dark)]"
-            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
+            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--text-primary)]"
+            style="color: var(--text-muted); border-color: var(--border-subtle);"
             >{formatTimestamp(packet.timestamp)}</td
           >
           <td
             class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-medium"
-            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
+            style="color: var(--text-secondary); border-color: var(--border-subtle);"
             >{packet.source_addr}</td
           >
           <td
             class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-medium"
-            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
+            style="color: var(--text-secondary); border-color: var(--border-subtle);"
             >{packet.dest_addr}</td
           >
           <td
-            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-bold {colorClasses.split(
+            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] font-medium {colorClasses.split(
               ' ',
             )[0]}"
-            style="border-color: var(--border-primary);">{packet.protocol}</td
+            style="border-color: var(--border-subtle);">{packet.protocol}</td
           >
           <td
-            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--cursor-dark)]"
-            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
+            class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px] group-hover:text-[var(--text-primary)]"
+            style="color: var(--text-muted); border-color: var(--border-subtle);"
             >{packet.length}</td
           >
           <td
             class="px-3 py-0 border-b h-[28px] whitespace-nowrap overflow-hidden text-ellipsis leading-[28px]"
-            style="color: rgba(38, 37, 30, 0.55); border-color: var(--border-primary);"
+            style="color: var(--text-muted); border-color: var(--border-subtle);"
             title={packet.info}>{packet.info}</td
           >
         </tr>
@@ -305,8 +304,8 @@
 
   {#if totalPacketsCount === 0}
     <div
-      class="absolute top-[50px] left-0 right-0 p-8 text-center italic"
-      style="color: rgba(38, 37, 30, 0.55);"
+      class="absolute top-[50px] left-0 right-0 p-8 text-center"
+      style="color: var(--text-muted);"
     >
       {#if $totalFilteredCount > 0}
         No packets match the current filter.
@@ -319,8 +318,8 @@
   <!-- Context Menu -->
   {#if contextMenuVisible}
     <div
-      class="fixed z-[200] shadow-xl rounded py-1 min-w-[160px]"
-      style="left: {contextMenuPos.x}px; top: {contextMenuPos.y}px; background-color: var(--surface-200); border: 1px solid var(--border-primary); font-family: var(--font-mono);"
+      class="fixed z-[200] rounded py-1 min-w-[160px]"
+      style="left: {contextMenuPos.x}px; top: {contextMenuPos.y}px; background-color: var(--bg-button); border: 1px solid var(--border-standard); font-family: var(--font-mono);"
       on:click|stopPropagation
       on:keydown={(e) => e.key === 'Escape' && closeContextMenu()}
       role="menu"
@@ -330,8 +329,10 @@
       <button
         on:click={followStream}
         disabled={!isStream}
-        class="w-full text-left px-4 py-2 hover:not-disabled:bg-[var(--surface-300)] hover:not-disabled:text-[var(--cursor-dark)] bg-transparent border-none text-sm flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed transition-colors"
-        style="color: {isStream ? 'var(--cursor-dark)' : 'rgba(38, 37, 30, 0.3)'};"
+        class="w-full text-left px-4 py-2 hover:not-disabled:bg-[var(--border-standard)] hover:not-disabled:text-[var(--text-primary)] bg-transparent border-none text-sm flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed transition-colors"
+        style="color: {isStream ? 'var(--text-primary)' : 'var(--text-muted)'}; opacity: {isStream
+          ? '1'
+          : '0.5'};"
         title={isStream ? 'Follow Stream' : 'Follow Stream (TCP/UDP only)'}
       >
         <svg

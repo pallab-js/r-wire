@@ -132,23 +132,23 @@
 
 <div
   class="px-4 py-3 flex items-center gap-5 flex-wrap relative z-20"
-  style="background-color: var(--surface-100); border-bottom: 1px solid var(--border-primary);"
+  style="background-color: var(--bg-page); border-bottom: 1px solid var(--border-standard);"
 >
   <div class="flex items-center gap-3">
     <div
       class="w-2.5 h-2.5 rounded-full transition-all duration-300 {intensityActive
         ? 'scale-150'
         : $isCapturing
-          ? 'bg-[var(--color-success)]'
-          : 'bg-[var(--border-medium)]'}"
+          ? 'bg-[var(--brand-green)]'
+          : 'bg-[var(--border-standard)]'}"
     ></div>
     <label for="interface-select" class="text-micro">Interface:</label>
     <select
       id="interface-select"
       bind:value={$selectedInterface}
       disabled={$isCapturing}
-      class="cursor-input text-sm min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed"
-      style="background-color: var(--surface-100);"
+      class="input-field text-sm min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed"
+      style="background-color: var(--bg-button);"
     >
       <option value={null}>Select Device...</option>
       {#each $availableInterfaces as iface}
@@ -158,10 +158,14 @@
   </div>
 
   <div
-    class="flex items-center border rounded min-w-[200px] px-2 transition-colors duration-200 focus-within:border-[var(--border-medium)]"
-    style="background-color: var(--surface-100); border-color: var(--border-primary);"
+    class="flex items-center border rounded min-w-[200px] px-2 transition-colors duration-200 focus-within:border-[var(--brand-border)]"
+    style="background-color: var(--bg-button); border-color: var(--border-standard);"
   >
-    <div class="text-muted flex items-center" title="Capture Filter (BPF)">
+    <div
+      class="text-muted flex items-center"
+      style="color: var(--text-muted);"
+      title="Capture Filter (BPF)"
+    >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
         ><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z" /></svg
       >
@@ -172,7 +176,7 @@
       placeholder="BPF Filter (e.g. tcp port 80)..."
       bind:value={$bpfFilter}
       disabled={$isCapturing}
-      class="flex-1 p-2 bg-transparent text-sm outline-none placeholder-[rgba(38,37,30,0.55)] disabled:opacity-50"
+      class="flex-1 p-2 bg-transparent text-sm outline-none text-[var(--text-primary)] placeholder-[var(--text-muted)] disabled:opacity-50"
       spellcheck="false"
     />
   </div>
@@ -181,7 +185,7 @@
     <button
       on:click={startCapture}
       disabled={!$selectedInterface || $isCapturing}
-      class="cursor-btn-success flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+      class="btn-success flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
       title="Start Capture"
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
@@ -192,7 +196,7 @@
     <button
       on:click={stopCapture}
       disabled={!$isCapturing}
-      class="cursor-btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+      class="btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
       title="Stop Capture"
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
@@ -203,7 +207,7 @@
     <button
       on:click={restartCapture}
       disabled={!$selectedInterface || !$isCapturing}
-      class="cursor-btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+      class="btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
       title="Restart Capture"
     >
       <svg
@@ -218,11 +222,11 @@
         ><path d="M23 4v6h-6" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg
       >
     </button>
-    <div class="w-px h-6 mx-1" style="background-color: var(--border-primary);"></div>
+    <div class="w-px h-6 mx-1" style="background-color: var(--border-standard);"></div>
     <button
       on:click={clearPackets}
       disabled={$totalFilteredCount === 0}
-      class="cursor-btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+      class="btn-secondary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
       title="Clear packet list"
     >
       Clear
@@ -230,7 +234,7 @@
     <button
       on:click={exportPcap}
       disabled={$totalFilteredCount === 0}
-      class="cursor-btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+      class="btn-secondary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
       title="Export to PCAP file"
     >
       Export PCAP
@@ -238,10 +242,10 @@
   </div>
 
   <div
-    class="flex items-center border rounded flex-1 max-w-[400px] px-2 transition-colors duration-200 focus-within:border-[var(--border-medium)]"
-    style="background-color: var(--surface-100); border-color: var(--border-primary);"
+    class="flex items-center border rounded flex-1 max-w-[400px] px-2 transition-colors duration-200 focus-within:border-[var(--brand-border)]"
+    style="background-color: var(--bg-button); border-color: var(--border-standard);"
   >
-    <div class="text-muted flex items-center">
+    <div class="flex items-center" style="color: var(--text-muted);">
       <svg
         width="14"
         height="14"
@@ -260,13 +264,13 @@
       type="text"
       placeholder="Display Filter (e.g. protocol:tcp)..."
       bind:value={$displayFilter}
-      class="flex-1 p-2 bg-transparent text-sm outline-none placeholder-[rgba(38,37,30,0.55)]"
+      class="flex-1 p-2 bg-transparent text-sm outline-none text-[var(--text-primary)] placeholder-[var(--text-muted)]"
       spellcheck="false"
     />
     {#if $displayFilter}
       <button
-        class="bg-transparent border-none text-lg cursor-pointer px-1 hover:text-[var(--color-error)] transition-colors"
-        style="color: rgba(38, 37, 30, 0.55);"
+        class="bg-transparent border-none text-lg cursor-pointer px-1 hover:text-[var(--text-error)] transition-colors"
+        style="color: var(--text-muted);"
         on:click={() => displayFilter.set('')}
         title="Clear display filter"
       >
@@ -277,13 +281,11 @@
 
   <div class="ml-auto">
     <span
-      class="text-micro px-3 py-1.5 rounded border flex items-center gap-2"
-      style="background-color: var(--surface-100); border-color: var(--border-primary);"
+      class="text-code px-3 py-1.5 rounded border flex items-center gap-2"
+      style="background-color: var(--bg-button); border-color: var(--border-standard);"
     >
-      <span>Packets</span>
-      <strong
-        class="font-mono text-base"
-        style="color: var(--color-success); font-family: var(--font-mono);"
+      <span style="color: var(--text-muted);">PACKETS</span>
+      <strong class="font-mono text-base" style="color: var(--brand-green);"
         >{$totalFilteredCount.toLocaleString()}</strong
       >
     </span>
@@ -293,16 +295,16 @@
     <div
       class="fixed top-[60px] right-5 px-4 py-3 rounded-md border flex items-center gap-4 z-[1000] animate-[slideIn_0.3s_ease-out]"
       style="background-color: {$captureError.startsWith('PCAP exported')
-        ? 'rgba(31, 138, 101, 0.15)'
-        : 'rgba(207, 45, 86, 0.15)'};
+        ? 'rgba(62, 207, 142, 0.15)'
+        : 'rgba(239, 68, 68, 0.15)'};
              color: {$captureError.startsWith('PCAP exported')
-        ? 'var(--color-success)'
-        : 'var(--color-error)'};
+        ? 'var(--brand-green)'
+        : 'var(--text-error)'};
              border-color: {$captureError.startsWith('PCAP exported')
-        ? 'var(--color-success)'
-        : 'var(--color-error)'};"
+        ? 'var(--brand-green)'
+        : 'var(--text-error)'};"
     >
-      <span class="text-body-serif-sm">{$captureError}</span>
+      <span class="text-body">{$captureError}</span>
       <button
         class="bg-transparent border-none text-current text-xl cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
         on:click={() => captureError.set(null)}>×</button

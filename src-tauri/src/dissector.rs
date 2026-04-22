@@ -1021,7 +1021,7 @@ mod tests {
         assert_eq!(summary.timestamp, 1_000_000_000);
         assert_eq!(summary.source_addr, "192.168.1.1");
         assert_eq!(summary.dest_addr, "192.168.1.2");
-        assert_eq!(summary.protocol, "TCP");
+        assert_eq!(summary.protocol, "HTTP");
         assert_eq!(summary.length, data.len() as u32);
     }
 

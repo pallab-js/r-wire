@@ -1,10 +1,8 @@
 <script lang="ts">
-  // Root layout for SvelteKit
   import '../app.css';
   import { onMount } from 'svelte';
 
   onMount(async () => {
-    // Verify Tauri API is available
     try {
       await import('@tauri-apps/api/tauri');
       console.log('Tauri API is available');
@@ -14,9 +12,17 @@
   });
 </script>
 
+<svelte:head>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+  </style>
+</svelte:head>
+
 <div
   class="h-screen w-screen flex flex-col overflow-hidden"
-  style="background-color: var(--cursor-cream); color: var(--cursor-dark);"
+  style="background-color: var(--bg-page); color: var(--text-primary);"
 >
   <slot />
 </div>

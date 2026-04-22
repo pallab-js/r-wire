@@ -23,16 +23,16 @@
 {#if $selectedStream}
   <div
     class="fixed inset-0 z-[100] flex items-center justify-center p-8"
-    style="background-color: rgba(38, 37, 30, 0.4); backdrop-filter: blur(8px);"
+    style="background-color: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px);"
   >
     <div
-      class="rounded-lg shadow-2xl w-full max-w-5xl h-full max-h-[80vh] flex flex-col overflow-hidden cursor-card-elevated"
-      style="background-color: var(--surface-100); border: 1px solid var(--border-primary);"
+      class="rounded-lg w-full max-w-5xl h-full max-h-[80vh] flex flex-col overflow-hidden"
+      style="background-color: var(--bg-page); border: 1px solid var(--border-standard);"
     >
       <!-- Header -->
       <div
         class="border-b p-4 flex items-center justify-between"
-        style="background-color: var(--surface-200); border-color: var(--border-primary);"
+        style="background-color: var(--border-standard); border-color: var(--border-standard);"
       >
         <div class="flex items-center gap-3">
           <svg
@@ -40,7 +40,7 @@
             height="20"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="var(--color-success)"
+            stroke="var(--brand-green)"
             stroke-width="2"
             ><path d="M7 11V7a5 5 0 0 1 10 0v4" /><rect
               x="3"
@@ -52,7 +52,7 @@
           >
           <h2
             class="m-0 text-lg"
-            style="font-family: var(--font-gothic); letter-spacing: -0.11px; color: var(--cursor-dark);"
+            style="font-family: var(--font-sans); color: var(--text-primary);"
           >
             Follow Stream
           </h2>
@@ -60,8 +60,8 @@
         <button
           on:click={close}
           aria-label="Close stream view"
-          class="bg-transparent border-none cursor-pointer p-1 rounded-md transition-colors cursor-btn-ghost"
-          style="color: rgba(38, 37, 30, 0.55);"
+          class="bg-transparent border-none cursor-pointer p-1 rounded-md transition-colors btn-ghost"
+          style="color: var(--text-muted);"
         >
           <svg
             width="24"
@@ -86,12 +86,12 @@
             <div
               class="max-w-[90%] p-3 rounded-lg border"
               style={msg.is_client
-                ? 'background-color: var(--color-read); color: #26251e; border-color: var(--border-primary); border-bottom-left-radius: 0;'
-                : 'background-color: var(--surface-300); color: var(--cursor-dark); border-color: var(--border-primary); border-bottom-right-radius: 0;'}
+                ? 'background-color: #60a5fa; color: var(--bg-button); border-color: var(--border-standard); border-bottom-left-radius: 0;'
+                : 'background-color: var(--border-prominent); color: var(--text-primary); border-color: var(--border-standard); border-bottom-right-radius: 0;'}
             >
               <pre class="whitespace-pre-wrap break-all m-0">{formatData(msg.data)}</pre>
             </div>
-            <span class="text-xs mt-1 px-1" style="color: rgba(38, 37, 30, 0.55);">
+            <span class="text-xs mt-1 px-1" style="color: var(--text-muted);">
               {new Date(msg.timestamp / 1000000).toLocaleTimeString()}
             </span>
           </div>
@@ -101,15 +101,18 @@
       <!-- Footer -->
       <div
         class="border-t p-4 flex items-center justify-between text-xs"
-        style="background-color: var(--surface-200); border-color: var(--border-primary); color: rgba(38, 37, 30, 0.55);"
+        style="background-color: var(--border-standard); border-color: var(--border-standard); color: var(--text-muted);"
       >
         <div class="flex gap-4">
           <span class="flex items-center gap-1.5"
-            ><div class="w-2 h-2 rounded-full" style="background-color: var(--color-read);"></div>
+            ><div class="w-2 h-2 rounded-full" style="background-color: #60a5fa;"></div>
             Client</span
           >
           <span class="flex items-center gap-1.5"
-            ><div class="w-2 h-2 rounded-full" style="background-color: var(--surface-300);"></div>
+            ><div
+              class="w-2 h-2 rounded-full"
+              style="background-color: var(--border-prominent);"
+            ></div>
             Server</span
           >
         </div>

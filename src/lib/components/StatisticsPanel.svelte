@@ -68,9 +68,9 @@
       responsive: true,
       maintainAspectRatio: false,
       animation: { duration: 0 },
-      color: '#26251e',
+      color: '#fafafa',
       plugins: {
-        legend: { labels: { color: '#26251e' } },
+        legend: { labels: { color: '#fafafa' } },
       },
     };
 
@@ -83,8 +83,8 @@
             {
               label: 'Packets/s',
               data: [],
-              borderColor: '#1f8a65',
-              backgroundColor: 'rgba(31, 138, 101, 0.1)',
+              borderColor: '#3ecf8e',
+              backgroundColor: 'rgba(62, 207, 142, 0.1)',
               yAxisID: 'y',
               fill: true,
               tension: 0.2,
@@ -93,8 +93,8 @@
             {
               label: 'Bytes/s',
               data: [],
-              borderColor: '#f54e00',
-              backgroundColor: 'rgba(245, 78, 0, 0.1)',
+              borderColor: '#00c573',
+              backgroundColor: 'rgba(0, 197, 115, 0.1)',
               yAxisID: 'y1',
               fill: true,
               tension: 0.2,
@@ -106,21 +106,21 @@
           ...commonOptions,
           scales: {
             x: {
-              ticks: { color: 'rgba(38, 37, 30, 0.55)' },
-              grid: { color: 'rgba(38, 37, 30, 0.1)' },
+              ticks: { color: '#898989' },
+              grid: { color: 'rgba(250, 250, 250, 0.1)' },
             },
             y: {
               type: 'linear',
               display: true,
               position: 'left',
-              ticks: { color: '#1f8a65' },
-              grid: { color: 'rgba(38, 37, 30, 0.1)' },
+              ticks: { color: '#3ecf8e' },
+              grid: { color: 'rgba(250, 250, 250, 0.1)' },
             },
             y1: {
               type: 'linear',
               display: true,
               position: 'right',
-              ticks: { color: '#f54e00' },
+              ticks: { color: '#00c573' },
               grid: { drawOnChartArea: false },
             },
           },
@@ -129,14 +129,14 @@
     }
 
     const colors = [
-      '#f54e00',
-      '#c08532',
-      '#1f8a65',
-      '#cf2d56',
-      '#9fbbe0',
-      '#9fc9a2',
-      '#c0a8dd',
-      '#dfa88f',
+      '#3ecf8e',
+      '#00c573',
+      '#60a5fa',
+      '#f472b6',
+      '#a78bfa',
+      '#fbbf24',
+      '#f87171',
+      '#34d399',
     ];
 
     if (protocolChartCanvas) {
@@ -148,7 +148,7 @@
             {
               data: [],
               backgroundColor: colors,
-              borderColor: '#f2f1ed',
+              borderColor: '#171717',
               borderWidth: 2,
             },
           ],
@@ -157,7 +157,7 @@
           ...commonOptions,
           cutout: '70%',
           plugins: {
-            legend: { position: 'right', labels: { color: '#26251e', boxWidth: 12 } },
+            legend: { position: 'right', labels: { color: '#fafafa', boxWidth: 12 } },
           },
         },
       });
@@ -172,12 +172,12 @@
 
 <div
   class="p-4 h-full overflow-y-auto box-border"
-  style="background-color: var(--surface-100); color: var(--cursor-dark);"
+  style="background-color: var(--bg-page); color: var(--text-primary);"
 >
   {#if stats.totalPackets === 0}
     <div
-      class="text-center p-8 italic flex h-full items-center justify-center"
-      style="color: rgba(38, 37, 30, 0.55);"
+      class="text-center p-8 flex h-full items-center justify-center"
+      style="color: var(--text-muted);"
     >
       No packets captured yet.
     </div>
@@ -185,50 +185,50 @@
     <div class="flex flex-col gap-4">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div
-          class="p-4 rounded border shadow-sm flex flex-col justify-center min-w-0 overflow-hidden cursor-card"
-          style="background-color: var(--surface-200); border-color: var(--border-primary);"
+          class="p-4 rounded border flex flex-col justify-center min-w-0 overflow-hidden card"
+          style="background-color: var(--border-standard); border-color: var(--border-standard);"
         >
-          <div class="text-micro mb-1 truncate">Total Packets</div>
-          <div class="text-2xl font-bold truncate" style="color: var(--color-success);">
+          <div class="text-code mb-1 truncate">TOTAL PACKETS</div>
+          <div class="text-2xl font-medium truncate" style="color: var(--brand-green);">
             {stats.totalPackets.toLocaleString()}
           </div>
         </div>
         <div
-          class="p-4 rounded border shadow-sm flex flex-col justify-center min-w-0 overflow-hidden cursor-card"
-          style="background-color: var(--surface-200); border-color: var(--border-primary);"
+          class="p-4 rounded border flex flex-col justify-center min-w-0 overflow-hidden card"
+          style="background-color: var(--border-standard); border-color: var(--border-standard);"
         >
-          <div class="text-micro mb-1 truncate">Total Bytes</div>
-          <div class="text-2xl font-bold truncate" style="color: var(--color-success);">
+          <div class="text-code mb-1 truncate">TOTAL BYTES</div>
+          <div class="text-2xl font-medium truncate" style="color: var(--brand-green);">
             {formatBytes(stats.totalBytes)}
           </div>
         </div>
         <div
-          class="p-4 rounded border shadow-sm flex flex-col justify-center min-w-0 overflow-hidden cursor-card"
-          style="background-color: var(--surface-200); border-color: var(--border-primary);"
+          class="p-4 rounded border flex flex-col justify-center min-w-0 overflow-hidden card"
+          style="background-color: var(--border-standard); border-color: var(--border-standard);"
         >
-          <div class="text-micro mb-1 truncate">Avg Packet Size</div>
-          <div class="text-2xl font-bold truncate" style="color: var(--color-success);">
-            {stats.averagePacketSize > 0 ? Math.round(stats.averagePacketSize) : 0} bytes
+          <div class="text-code mb-1 truncate">AVG PACKET SIZE</div>
+          <div class="text-2xl font-medium truncate" style="color: var(--brand-green);">
+            {stats.averagePacketSize > 0 ? Math.round(stats.averagePacketSize) : 0} BYTES
           </div>
         </div>
       </div>
 
       <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-4">
         <div
-          class="p-4 rounded border flex flex-col min-h-[300px] cursor-card"
-          style="background-color: var(--surface-200); border-color: var(--border-primary);"
+          class="p-4 rounded border flex flex-col min-h-[300px] card"
+          style="background-color: var(--border-standard); border-color: var(--border-standard);"
         >
-          <h4 class="m-0 mb-4 text-micro">Traffic Rate</h4>
+          <h4 class="m-0 mb-4 text-code">TRAFFIC RATE</h4>
           <div class="flex-1 relative min-h-0">
             <canvas bind:this={timeChartCanvas}></canvas>
           </div>
         </div>
 
         <div
-          class="p-4 rounded border flex flex-col min-h-[300px] cursor-card"
-          style="background-color: var(--surface-200); border-color: var(--border-primary);"
+          class="p-4 rounded border flex flex-col min-h-[300px] card"
+          style="background-color: var(--border-standard); border-color: var(--border-standard);"
         >
-          <h4 class="m-0 mb-4 text-micro">Protocols</h4>
+          <h4 class="m-0 mb-4 text-code">PROTOCOLS</h4>
           <div class="flex-1 relative min-h-0">
             <canvas bind:this={protocolChartCanvas}></canvas>
           </div>
@@ -237,20 +237,20 @@
 
       <!-- Network Topology Widget -->
       <div
-        class="p-4 rounded border flex flex-col min-h-[400px] cursor-card"
-        style="background-color: var(--surface-200); border-color: var(--border-primary);"
+        class="p-4 rounded border flex flex-col min-h-[400px] card"
+        style="background-color: var(--border-standard); border-color: var(--border-standard);"
       >
         <div class="flex items-center justify-between mb-4">
-          <h4 class="m-0 text-micro">Network Topology</h4>
+          <h4 class="m-0 text-code">NETWORK TOPOLOGY</h4>
           <span
-            class="text-micro px-2 py-0.5 rounded border"
-            style="color: rgba(38, 37, 30, 0.55); background-color: var(--surface-100); border-color: var(--border-primary);"
+            class="text-code px-2 py-0.5 rounded border"
+            style="color: var(--text-muted); background-color: var(--bg-button); border-color: var(--border-standard);"
             >TOP 20 CONVERSATIONS</span
           >
         </div>
         <div
           class="flex-1 rounded border relative overflow-hidden group"
-          style="background-color: var(--surface-100); border-color: var(--border-primary);"
+          style="background-color: var(--bg-button); border-color: var(--border-standard);"
         >
           <div
             class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10"
@@ -281,29 +281,30 @@
               {#each stats.topSources.slice(0, 10) as src}
                 {#each stats.topDestinations.slice(0, 2) as dst}
                   <div
-                    class="flex items-center justify-between p-2 rounded border hover:border-[var(--color-success)]/30 transition-colors text-xs"
-                    style="background-color: var(--surface-200); border-color: var(--border-primary);"
+                    class="flex items-center justify-between p-2 rounded border hover:border-[rgba(62,207,142,0.3)] transition-colors text-xs"
+                    style="background-color: var(--border-standard); border-color: var(--border-subtle);"
                   >
-                    <span class="truncate w-[120px] font-mono" style="color: var(--color-success);"
+                    <span class="truncate w-[120px] font-mono" style="color: var(--brand-green);"
                       >{src.address}</span
                     >
                     <div class="flex-1 flex items-center px-4 opacity-40">
                       <div
                         class="h-px flex-1"
-                        style="background: linear-gradient(to right, var(--color-success), rgba(38, 37, 30, 0.55));"
+                        style="background: linear-gradient(to right, var(--brand-green), var(--text-muted));"
                       ></div>
                       <svg
                         width="8"
                         height="8"
                         viewBox="0 0 24 24"
                         fill="currentColor"
-                        style="color: rgba(38, 37, 30, 0.55);"
-                        ><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" /></svg
+                        style="color: var(--text-muted);"
                       >
+                        <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                      </svg>
                     </div>
                     <span
                       class="truncate w-[120px] text-right font-mono"
-                      style="color: rgba(38, 37, 30, 0.55);">{dst.address}</span
+                      style="color: var(--text-muted);">{dst.address}</span
                     >
                   </div>
                 {/each}
@@ -315,18 +316,18 @@
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div
-          class="p-4 rounded border cursor-card"
-          style="background-color: var(--surface-200); border-color: var(--border-primary);"
+          class="p-4 rounded border card"
+          style="background-color: var(--border-standard); border-color: var(--border-standard);"
         >
-          <h4 class="m-0 mb-4 text-micro">Top Sources</h4>
+          <h4 class="m-0 mb-4 text-code">TOP SOURCES</h4>
           <div class="flex flex-col gap-1.5">
             {#each stats.topSources as talker}
               <div
-                class="flex justify-between px-3 py-1.5 rounded hover:bg-[var(--surface-300)] transition-colors text-sm"
-                style="background-color: var(--surface-100);"
+                class="flex justify-between px-3 py-1.5 rounded hover:bg-[var(--border-prominent)] transition-colors text-sm"
+                style="background-color: var(--bg-button);"
               >
-                <span class="font-mono" style="color: var(--color-success);">{talker.address}</span>
-                <span class="font-medium" style="color: rgba(38, 37, 30, 0.55);"
+                <span class="font-mono" style="color: var(--brand-green);">{talker.address}</span>
+                <span class="font-medium" style="color: var(--text-muted);"
                   >{talker.count.toLocaleString()}</span
                 >
               </div>
@@ -335,18 +336,18 @@
         </div>
 
         <div
-          class="p-4 rounded border cursor-card"
-          style="background-color: var(--surface-200); border-color: var(--border-primary);"
+          class="p-4 rounded border card"
+          style="background-color: var(--border-standard); border-color: var(--border-standard);"
         >
-          <h4 class="m-0 mb-4 text-micro">Top Destinations</h4>
+          <h4 class="m-0 mb-4 text-code">TOP DESTINATIONS</h4>
           <div class="flex flex-col gap-1.5">
             {#each stats.topDestinations as talker}
               <div
-                class="flex justify-between px-3 py-1.5 rounded hover:bg-[var(--surface-300)] transition-colors text-sm"
-                style="background-color: var(--surface-100);"
+                class="flex justify-between px-3 py-1.5 rounded hover:bg-[var(--border-prominent)] transition-colors text-sm"
+                style="background-color: var(--bg-button);"
               >
-                <span class="font-mono" style="color: var(--color-success);">{talker.address}</span>
-                <span class="font-medium" style="color: rgba(38, 37, 30, 0.55);"
+                <span class="font-mono" style="color: var(--brand-green);">{talker.address}</span>
+                <span class="font-medium" style="color: var(--text-muted);"
                   >{talker.count.toLocaleString()}</span
                 >
               </div>

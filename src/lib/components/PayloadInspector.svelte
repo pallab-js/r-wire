@@ -61,25 +61,25 @@
 
 <div
   class="flex flex-col h-full"
-  style="background-color: var(--cursor-cream); font-family: var(--font-mono);"
+  style="background-color: var(--bg-page); font-family: var(--font-mono);"
 >
   <div
     class="border-b p-2 flex items-center justify-between shrink-0"
-    style="background-color: var(--surface-200); border-color: var(--border-primary);"
+    style="background-color: var(--border-standard); border-color: var(--border-standard);"
   >
     <div class="flex items-center gap-2">
-      <span class="text-micro px-2">Detected:</span>
+      <span class="text-code px-2">DETECTED:</span>
       <span
-        class="px-2 py-0.5 text-xs font-bold rounded uppercase"
-        style="background-color: var(--color-read); color: var(--color-text-on-dark, #26251e);"
+        class="px-2 py-0.5 text-xs font-medium rounded uppercase"
+        style="background-color: #60a5fa; color: var(--bg-button);"
       >
         {contentType}
       </span>
     </div>
     <button
       on:click={copyToClipboard}
-      class="text-xs px-3 py-1 rounded cursor-pointer transition-colors flex items-center gap-1.5 cursor-btn-primary"
-      style="background-color: var(--surface-300);"
+      class="text-xs px-3 py-1 rounded cursor-pointer transition-colors flex items-center gap-1.5 btn-secondary"
+      style="background-color: var(--bg-button);"
     >
       <svg
         width="12"
@@ -100,11 +100,11 @@
     {#if contentType === 'json' || contentType === 'jwt'}
       <pre
         class="m-0 whitespace-pre-wrap leading-relaxed"
-        style="color: var(--cursor-dark);">{formattedContent}</pre>
+        style="color: var(--text-primary);">{formattedContent}</pre>
     {:else}
       <pre
         class="m-0 whitespace-pre-wrap break-all leading-relaxed"
-        style="color: var(--cursor-dark);">{formattedContent}</pre>
+        style="color: var(--text-primary);">{formattedContent}</pre>
     {/if}
   </div>
 </div>

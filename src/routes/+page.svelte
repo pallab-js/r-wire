@@ -20,6 +20,7 @@
   onMount(() => {
     const completed = localStorage.getItem('auracap_onboarding_complete');
     showOnboarding = completed !== 'true';
+    document.documentElement.setAttribute('data-theme', 'dark');
   });
 
   function startDrag(type: 'vertical' | 'horizontal') {
@@ -92,12 +93,12 @@
 
 <div
   class="flex flex-col h-screen overflow-hidden select-none"
-  style="background-color: var(--cursor-cream); color: var(--cursor-dark);"
+  style="background-color: var(--bg-page); color: var(--text-primary);"
 >
   <!-- Top Toolbar -->
   <header
     class="flex-none border-b z-20 responsive-toolbar"
-    style="background-color: var(--surface-100); border-color: var(--border-primary);"
+    style="background-color: var(--bg-page); border-color: var(--border-standard);"
   >
     <div class="flex items-center justify-between px-4 py-3 responsive-toolbar-inner">
       <div class="flex items-center gap-3">
@@ -106,7 +107,7 @@
           height="24"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="var(--color-success)"
+          stroke="var(--brand-green)"
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
@@ -117,14 +118,14 @@
           <path d="m9 18 3-3-3-3" />
         </svg>
         <h1
-          class="font-semibold tracking-wide text-lg m-0"
-          style="font-family: var(--font-gothic); letter-spacing: -0.72px; color: var(--cursor-dark);"
+          class="text-lg font-medium tracking-wide m-0"
+          style="font-family: var(--font-sans); color: var(--text-primary);"
         >
           AuraCap
         </h1>
       </div>
       <button
-        class="cursor-btn-secondary-pill flex items-center gap-2"
+        class="btn-secondary flex items-center gap-2"
         class:active={showStats}
         on:click={() => (showStats = !showStats)}
       >
@@ -151,10 +152,7 @@
   <!-- Main Content Area -->
   <main class="flex flex-1 overflow-hidden relative">
     <!-- Left Panel (Packets & Details) -->
-    <div
-      class="flex-1 flex flex-col min-w-0 relative"
-      style="background-color: var(--cursor-cream);"
-    >
+    <div class="flex-1 flex flex-col min-w-0 relative" style="background-color: var(--bg-page);">
       <div id="split-container" class="flex-1 flex flex-col h-full relative">
         <!-- Packet List (Top Pane) -->
         <div
@@ -168,13 +166,13 @@
         {#if $selectedPacket}
           <button
             aria-label="Resize panels"
-            class="h-1.5 w-full cursor-row-resize border-y hover:bg-[var(--color-accent)] transition-colors flex items-center justify-center group z-10 p-0 border-x-0 shrink-0"
-            style="background-color: var(--surface-200); border-color: var(--border-primary);"
+            class="h-1.5 w-full cursor-row-resize border-y hover:bg-[var(--brand-green)] transition-colors flex items-center justify-center group z-10 p-0 border-x-0 shrink-0"
+            style="background-color: var(--border-standard); border-color: var(--border-subtle);"
             on:mousedown={() => startDrag('vertical')}
           >
             <div
-              class="w-8 h-0.5 rounded-full transition-colors group-hover:bg-[var(--cursor-dark)]"
-              style="background-color: rgba(38, 37, 30, 0.3);"
+              class="w-8 h-0.5 rounded-full transition-colors group-hover:bg-[var(--bg-button)]"
+              style="background-color: var(--text-muted);"
             ></div>
           </button>
 
@@ -190,20 +188,20 @@
     {#if showStats}
       <button
         aria-label="Resize statistics"
-        class="w-1.5 h-full cursor-col-resize border-x hover:bg-[var(--color-accent)] transition-colors flex items-center justify-center group z-20 p-0 border-y-0 shrink-0"
-        style="background-color: var(--surface-200); border-color: var(--border-primary);"
+        class="w-1.5 h-full cursor-col-resize border-x hover:bg-[var(--brand-green)] transition-colors flex items-center justify-center group z-20 p-0 border-y-0 shrink-0"
+        style="background-color: var(--border-standard); border-color: var(--border-subtle);"
         on:mousedown={() => startDrag('horizontal')}
       >
         <div
-          class="h-8 w-0.5 rounded-full transition-colors group-hover:bg-[var(--cursor-dark)]"
-          style="background-color: rgba(38, 37, 30, 0.3);"
+          class="h-8 w-0.5 rounded-full transition-colors group-hover:bg-[var(--bg-button)]"
+          style="background-color: var(--text-muted);"
         ></div>
       </button>
 
       <!-- Right Panel (Statistics) -->
       <div
         class="border-l z-10 overflow-y-auto shrink-0"
-        style="width: {statsWidthPx}px; border-color: var(--border-primary); background-color: var(--surface-100);"
+        style="width: {statsWidthPx}px; border-color: var(--border-standard); background-color: var(--bg-page);"
       >
         <StatisticsPanel />
       </div>
@@ -221,11 +219,10 @@
   :global(body) {
     margin: 0;
     padding: 0;
-    background-color: var(--cursor-cream);
+    background-color: var(--bg-page);
     overflow: hidden;
   }
 
-  /* Prevent text selection while dragging */
   :global(.dragging) {
     user-select: none !important;
   }

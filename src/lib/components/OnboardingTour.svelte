@@ -9,32 +9,17 @@
     {
       title: 'Welcome to AuraCap',
       description:
-        'AuraCap is a professional network packet analyzer designed to make packet analysis simple and accessible.',
-      icon: '🔍',
+        'A professional network packet analyzer for macOS. Start capturing packets with ease.',
     },
     {
-      title: 'Start Capturing',
+      title: 'Capture Traffic',
       description:
-        'Click "Start Capture" to begin capturing network packets. You can filter by interface and apply BPF filters.',
-      icon: '▶️',
+        'Select an interface and click Start Capture to begin. Use BPF filters to focus on specific traffic.',
     },
     {
-      title: 'View Packet Details',
+      title: 'Analyze Packets',
       description:
-        'Click any packet in the list to see its details. The "Essentials" tab provides a beginner-friendly summary.',
-      icon: '📋',
-    },
-    {
-      title: 'Analyze Traffic',
-      description:
-        'Use the Hex View for raw bytes, Payload Inspector for decoded content, and Intelligence for risk analysis.',
-      icon: '📊',
-    },
-    {
-      title: 'Export & Share',
-      description:
-        'Export your captures as PCAP files to share with others or analyze later in other tools.',
-      icon: '💾',
+        'Click any packet to view details. Use Essentials for overview, Protocol Tree for breakdown, Hex View for raw bytes.',
     },
   ];
 
@@ -75,35 +60,32 @@
   class="fixed inset-0 z-50 flex items-center justify-center"
   style="background-color: rgba(0, 0, 0, 0.6);"
 >
-  <div
-    class="w-full max-w-lg rounded-lg shadow-2xl overflow-hidden"
-    style="background-color: var(--cursor-cream);"
-  >
+  <div class="w-full max-w-lg rounded-lg overflow-hidden" style="background-color: var(--bg-page);">
     <!-- Progress bar -->
-    <div class="h-1" style="background-color: var(--surface-200);">
+    <div class="h-1" style="background-color: var(--border-standard);">
       <div
         class="h-full transition-all duration-300"
-        style="width: {progress}%; background-color: var(--color-success);"
+        style="width: {progress}%; background-color: var(--brand-green);"
       ></div>
     </div>
 
     <div class="p-8">
-      <!-- Step icon and number -->
+      <!-- Step number -->
       <div class="flex items-center justify-center mb-6">
         <div
-          class="w-16 h-16 rounded-full flex items-center justify-center text-3xl"
-          style="background-color: var(--surface-200);"
+          class="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-medium"
+          style="background-color: var(--border-standard); color: var(--brand-green);"
         >
-          {steps[currentStep].icon}
+          {currentStep + 1}
         </div>
       </div>
 
       <!-- Step content -->
       <div class="text-center mb-8">
-        <h2 class="text-xl font-bold mb-2" style="color: var(--cursor-dark);">
+        <h2 class="text-xl font-medium mb-2" style="color: var(--text-primary);">
           {steps[currentStep].title}
         </h2>
-        <p class="text-sm leading-relaxed" style="color: rgba(38, 37, 30, 0.7);">
+        <p class="text-sm leading-relaxed" style="color: var(--text-secondary);">
           {steps[currentStep].description}
         </p>
       </div>
@@ -114,8 +96,8 @@
           <button
             class="w-2 h-2 rounded-full transition-all cursor-pointer"
             style="background-color: {i === currentStep
-              ? 'var(--color-success)'
-              : 'var(--surface-300)'}; border: none;"
+              ? 'var(--brand-green)'
+              : 'var(--border-prominent)'}; border: none;"
             on:click={() => (currentStep = i)}
             aria-label="Go to step {i + 1}"
           ></button>
@@ -126,7 +108,7 @@
       <div class="flex items-center justify-between">
         <button
           class="px-4 py-2 text-sm font-medium transition-colors cursor-pointer"
-          style="color: rgba(38, 37, 30, 0.55); background: transparent; border: none;"
+          style="color: var(--text-muted); background: transparent; border: none;"
           on:click={skip}
         >
           Skip Tour
@@ -136,15 +118,15 @@
           {#if currentStep > 0}
             <button
               class="px-4 py-2 text-sm font-medium rounded cursor-pointer transition-colors"
-              style="background-color: var(--surface-200); color: var(--cursor-dark); border: 1px solid var(--border-primary);"
+              style="background-color: var(--border-standard); color: var(--text-primary); border: 1px solid var(--border-standard);"
               on:click={previous}
             >
               Back
             </button>
           {/if}
           <button
-            class="px-6 py-2 text-sm font-bold rounded cursor-pointer transition-colors"
-            style="background-color: var(--color-success); color: white; border: none;"
+            class="px-6 py-2 text-sm font-medium rounded cursor-pointer transition-colors"
+            style="background-color: var(--brand-green); color: var(--bg-button); border: none;"
             on:click={next}
           >
             {currentStep === steps.length - 1 ? 'Get Started' : 'Next'}

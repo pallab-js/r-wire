@@ -2,48 +2,33 @@
   import { selectedPacket } from '../stores';
   import ProtocolTree from './ProtocolTree.svelte';
   import HexView from './HexView.svelte';
-  import PayloadInspector from './PayloadInspector.svelte';
-  import ForensicNarrative from './ForensicNarrative.svelte';
-  import ForensicIntelligence from './ForensicIntelligence.svelte';
-  import ForensicArtifacts from './ForensicArtifacts.svelte';
-  import FlowTimeline from './FlowTimeline.svelte';
+  import PacketOverview from './PacketOverview.svelte';
 
-  type TabId =
-    | 'essentials'
-    | 'detail'
-    | 'hex'
-    | 'payload'
-    | 'intelligence'
-    | 'artifacts'
-    | 'timeline';
+  type TabId = 'overview' | 'layers' | 'bytes';
 
-  let activeTab: TabId = 'essentials';
+  let activeTab: TabId = 'overview';
 
   const tabs: { id: TabId; label: string; description: string }[] = [
-    { id: 'essentials', label: 'Essentials', description: 'Quick overview' },
-    { id: 'detail', label: 'Protocol Tree', description: 'Full packet breakdown' },
-    { id: 'hex', label: 'Hex View', description: 'Raw bytes' },
-    { id: 'payload', label: 'Payload', description: 'Decoded content' },
-    { id: 'intelligence', label: 'Intelligence', description: 'Risk & fingerprints' },
-    { id: 'artifacts', label: 'Artifacts', description: 'Extracted files' },
-    { id: 'timeline', label: 'Timeline', description: 'Flow timing' },
+    { id: 'overview', label: 'Overview', description: 'Packet summary and context' },
+    { id: 'layers', label: 'Layers', description: 'Protocol layer breakdown' },
+    { id: 'bytes', label: 'Bytes', description: 'Raw packet data' },
   ];
 </script>
 
 <div
   class="flex flex-col h-full"
-  style="background-color: var(--cursor-cream); font-family: var(--font-gothic);"
+  style="background-color: var(--bg-page); font-family: var(--font-sans);"
 >
   {#if $selectedPacket}
     {#if $selectedPacket.expert_summary && $selectedPacket.expert_summary.length > 0}
       <div
         class="border-b p-2 flex flex-col gap-1 shrink-0"
-        style="background-color: rgba(255, 77, 109, 0.1); border-color: var(--color-error);"
+        style="background-color: rgba(239, 68, 68, 0.1); border-color: #ef4444;"
       >
         {#each $selectedPacket.expert_summary as expert}
           <div
-            class="flex items-center gap-2 text-xs font-bold uppercase tracking-tight"
-            style="color: var(--color-error);"
+            class="flex items-center gap-2 text-xs font-medium uppercase tracking-tight"
+            style="color: #ef4444;"
           >
             <svg
               width="14"
@@ -66,7 +51,7 @@
 
     <div
       class="flex border-b shrink-0 sticky top-0 z-20 overflow-x-auto no-scrollbar"
-      style="background-color: var(--surface-200); border-color: var(--border-primary);"
+      style="background-color: var(--border-standard); border-color: var(--border-standard);"
     >
       {#each tabs as tab}
         <button
@@ -74,7 +59,7 @@
           tab.id
             ? 'tab-active'
             : ''}"
-          style="color: rgba(38, 37, 30, 0.55);"
+          style="color: var(--text-muted);"
           on:click={() => (activeTab = tab.id)}
           title={tab.description}
         >
@@ -84,32 +69,18 @@
     </div>
 
     <div class="flex-1 overflow-hidden relative">
-      {#if activeTab === 'essentials'}
-        <div class="h-full overflow-y-auto p-6" style="background-color: var(--cursor-cream);">
-          <div class="max-w-4xl space-y-6">
-            <ForensicNarrative narrative={$selectedPacket.narrative} />
-            <div class="border-t" style="border-color: var(--border-primary);"></div>
-            <PayloadInspector rawBytes={$selectedPacket.raw_bytes} />
-          </div>
-        </div>
-      {:else if activeTab === 'detail'}
+      {#if activeTab === 'overview'}
+        <PacketOverview packet={$selectedPacket} />
+      {:else if activeTab === 'layers'}
         <ProtocolTree layers={$selectedPacket.layers} />
-      {:else if activeTab === 'hex'}
+      {:else if activeTab === 'bytes'}
         <HexView rawBytes={$selectedPacket.raw_bytes} />
-      {:else if activeTab === 'payload'}
-        <PayloadInspector rawBytes={$selectedPacket.raw_bytes} />
-      {:else if activeTab === 'intelligence'}
-        <ForensicIntelligence intelligence={$selectedPacket.intelligence} />
-      {:else if activeTab === 'artifacts'}
-        <ForensicArtifacts artifacts={$selectedPacket.artifacts} />
-      {:else if activeTab === 'timeline'}
-        <FlowTimeline />
       {/if}
     </div>
   {:else}
     <div
-      class="flex flex-1 items-center justify-center italic p-8 text-center"
-      style="color: rgba(38, 37, 30, 0.55); background-color: var(--cursor-cream);"
+      class="flex flex-1 items-center justify-center p-8 text-center"
+      style="color: var(--text-muted); background-color: var(--bg-page);"
     >
       No packet selected. Click on a packet in the list above to view details.
     </div>
@@ -128,7 +99,7 @@
   .tab-btn {
     background: transparent;
     border: none;
-    color: rgba(38, 37, 30, 0.55);
+    color: var(--text-muted);
     transition:
       color 0.15s ease,
       border-color 0.15s ease,
@@ -136,13 +107,13 @@
   }
 
   .tab-btn:hover {
-    color: var(--cursor-dark);
-    background-color: var(--surface-100);
+    color: var(--text-primary);
+    background-color: var(--border-standard);
   }
 
   .tab-active {
-    color: var(--color-success) !important;
-    border-bottom-color: var(--color-success) !important;
-    background-color: var(--surface-100) !important;
+    color: var(--brand-green) !important;
+    border-bottom-color: var(--brand-green) !important;
+    background-color: var(--bg-button) !important;
   }
 </style>
