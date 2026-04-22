@@ -1,15 +1,13 @@
-# AuraCap Network Analyzer
+# AuraCap - Professional Network Analyzer
 
 <div align="center">
 
-[![CI](https://github.com/pallab-js/r-wire/actions/workflows/ci.yml/badge.svg)](https://github.com/pallab-js/r-wire/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#)
-[![Release](https://img.shields.io/github/v/release/pallab-js/r-wire?include_prereleases&label=latest)](#)
+[![Platform: macOS](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-black)](https://apple.com/mac)
+[![CI](https://github.com/pallab-js/r-wire/actions/workflows/ci.yml/badge.svg)](https://github.com/pallab-js/r-wire/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/pallab-js/r-wire?include_prereleases&label=latest)](https://github.com/pallab-js/r-wire/releases)
 
-**Professional-grade network packet analyzer built for clarity, not complexity.**
-
-_AuraCap is a modern, high-performance network forensics tool designed to make packet analysis accessible to everyone—from network administrators to security enthusiasts._
+**AuraCap** is a free, open-source network packet analyzer built for macOS Apple Silicon. Designed for network engineers, cybersecurity professionals, and beginners who need powerful packet analysis without Wireshark's complexity.
 
 </div>
 
@@ -17,82 +15,88 @@ _AuraCap is a modern, high-performance network forensics tool designed to make p
 
 ## Why AuraCap?
 
-| Feature                | Wireshark                 | AuraCap                     |
-| ---------------------- | ------------------------- | --------------------------- |
-| Beginner-Friendly UI   | ❌ Complex menus          | ✅ Clean, focused interface |
-| Instant Packet Summary | ❌ Manual decoding        | ✅ Auto-generated narrative |
-| Modern Design          | ❌ Dated UI               | ✅ Warm minimal design      |
-| Local-First            | ✅                        | ✅                          |
-| No Dependencies        | ❌ Requires WinPcap/Npcap | ✅ Built-in (Tauri)         |
+| Aspect | Wireshark | AuraCap |
+|--------|----------|---------|
+| **Platform** | Cross-platform | macOS-native (Apple Silicon optimized) |
+| **Learning Curve** | Steep | Beginner-friendly |
+| **Interface** | Complex menus | Clean, focused UI |
+| **Startup** | Slow, heavy | Instant launch |
+| **Design** | Dated | Modern dark theme |
+| **Dependencies** | Requires WinPcap/Npcap | Built-in (Tauri) |
+| **Price** | Free (but complex) | Free & open-source |
+
+AuraCap provides professional-grade packet analysis in a fraction of the complexity—without sacrificing the power experts need.
+
+---
+
+## Who Is AuraCap For?
+
+### Network Engineers
+- Debug network issues faster with instant packet summaries
+- Filter traffic with simple display filters
+- Export captures for further analysis in Wireshark
+
+### Cybersecurity Professionals  
+- Analyze suspicious traffic on-the-fly
+- Inspect payloads (JSON, JWT, hex)
+- Follow TCP/UDP streams in human-readable form
+
+### Students & Beginners
+- Learn networking without overwhelming details
+- Natural language packet explanations
+- No prior experience required
 
 ---
 
 ## Quick Start
 
-### Download Pre-built Release
+### Download
 
-```bash
-# macOS (DMG)
-# Download from: https://github.com/pallab-js/r-wire/releases
+Download the latest release from [GitHub Releases](https://github.com/pallab-js/r-wire/releases):
 
-# Linux (AppImage)
-chmod +x AuraCap*.AppImage && ./AuraCap*.AppImage
-
-# Windows (MSI/EXE)
-# Download and run the installer
-```
+- **macOS**: `.dmg` installer (Apple Silicon recommended)
+- **Windows**: `.msi` / `.exe` installer
+- **Linux**: `.AppImage`
 
 ### Build from Source
 
-#### Prerequisites
-
-| OS      | Requirements              |
-| ------- | ------------------------- |
-| macOS   | Xcode Command Line Tools  |
-| Linux   | `libpcap-dev`, WebKit2GTK |
-| Windows | Npcap SDK                 |
-
-#### Build Steps
-
 ```bash
-# 1. Clone the repository
+# Clone the repository
 git clone https://github.com/pallab-js/r-wire.git
 cd r-wire
 
-# 2. Install dependencies
+# Install dependencies
 npm install
 
-# 3. Run in development mode
+# Run in development mode (requires sudo for packet capture)
 sudo npm run tauri dev
 
-# 4. Build for production
+# Build for production
 npm run tauri build
 ```
 
-> ⚠️ **Note**: Packet capture requires elevated privileges. Run with `sudo` on macOS/Linux or as Administrator on Windows.
+> **Note**: Packet capture requires elevated privileges. Run with `sudo` on macOS/Linux or as Administrator on Windows.
 
 ---
 
 ## Features
 
-### For Beginners
+### Core Capabilities
+- **Real-time capture** from any network interface
+- **Instant filtering** with display filters (e.g., `protocol:tcp`, `port:443`)
+- **BPF support** for advanced capture filters
+- **Export to PCAP** for external analysis
 
-- **Essentials View** - Get instant packet summaries without deep protocol knowledge
-- **Natural Language Narrative** - Automatic plain-English explanation of each packet
-- **Smart Payload Detection** - Auto-detects and formats JSON, JWT, and text payloads
+### Packet Analysis
+- **Packet list** with virtual scrolling (handles millions of packets)
+- **Packet details** with protocol layer breakdown
+- **Hex view** for raw byte inspection
+- **Follow Stream** for TCP/UDP conversation reassembly
 
-### For Professionals
-
-- **Protocol Tree** - Full RFC-compliant packet dissection
-- **Hex View** - Raw byte inspection with highlighting
-- **Artifacts Export** - Export individual packets and artifacts (PDF, JPG, PNG)
-- **Follow Stream** - Reassembled TCP/UDP stream view
-- **Statistics Panel** - Traffic rate charts, protocol distribution, top talkers
-
-### Design Philosophy
-
-- **Warm Minimalism** - Designed to reduce eye strain during long sessions
-- **Theme Toggle** - Light/dark mode support
+### Professional Tools
+- **Protocol statistics** (traffic rates, protocol distribution)
+- **Interface selection** for multi-NIC environments
+- **Artifact extraction** from packets
 
 ---
 
@@ -102,19 +106,35 @@ npm run tauri build
 ┌─────────────────────────────────────────────────────────────┐
 │                        Frontend                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
-│  │   Svelte    │  │  Tailwind   │  │      Chart.js       │ │
-│  │   (UI)      │  │   (Style)   │  │   (Statistics)     │ │
+│  │  SvelteKit  │  │  Tailwind  │  │   TypeScript        │ │
+│  │   (UI)      │  │  (Style)  │  │   (Logic)          │ │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘ │
 └──────────────────────────┬──────────────────────────────────┘
                            │ Tauri IPC
 ┌──────────────────────────┴──────────────────────────────────┐
 │                         Backend                              │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
-│  │   Rust      │  │    PCAP     │  │       SQLite        │ │
-│  │  (Core)     │  │ (Capture)   │  │    (Storage)        │ │
+│  │    Rust     │  │   PCAP     │  │      SQLite         │ │
+│  │   (Core)    │  │ (Capture)  │  │    (Storage)        │ │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Tech Stack:**
+- **Frontend**: SvelteKit, TypeScript, Tailwind CSS
+- **Backend**: Rust, pcapcapture, SQLite
+- **Desktop**: Tauri 2.x (native performance)
+
+---
+
+## Design Philosophy
+
+AuraCap follows the [Supabase-inspired design system](DESIGN.md):
+
+- **Dark-mode-only** - Optimized for long analysis sessions
+- **Emerald accents** - Subtle brand color for key actions
+- **Minimalist** - Every pixel serves a purpose
+- **Performance-first** - Virtual scrolling handles millions of packets
 
 ---
 
@@ -124,14 +144,12 @@ npm run tauri build
 # Run tests
 npm run test:unit && cd src-tauri && cargo test
 
-# Lint
+# Lint and format
 npm run lint
+npm run format
 
 # Type check
 npm run check
-
-# Format code
-npm run format
 ```
 
 ---
@@ -148,20 +166,22 @@ Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTIN
 
 ---
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for upcoming features.
+
+---
+
 ## License
 
 Licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-## Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for upcoming features and future plans.
-
----
-
 <div align="center">
 
-**Made with ❤️ by the AuraCap Team**
+**AuraCap** — Network analysis for everyone.
+
+_Made with precision for macOS Apple Silicon._
 
 </div>
