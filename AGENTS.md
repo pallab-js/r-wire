@@ -3,7 +3,7 @@
 ## Project Overview
 
 - **Type**: Desktop app (Tauri + SvelteKit + Rust)
-- **Platform**: macOS primary, Windows/Linux via CI
+- **Platform**: macOS primary (CI packages a macOS `.dmg`); Windows/Linux builds are not set up yet — CI only tests on Linux
 - **License**: MIT
 
 ## Key Commands
@@ -60,9 +60,8 @@ Backend (Rust/Tauri)
 
 ### UI Design System
 
-- Theme toggle in header (light/dark)
+- Dark theme only: `data-theme="dark"` is set on `<html>` at startup (there is no toggle and no light theme yet)
 - Uses CSS variables from `app.css`
-- Dark mode: set `data-theme="dark"` on `<html>`
 
 ### Protocol Detection
 
@@ -93,6 +92,7 @@ Backend (Rust/Tauri)
 
 ## Roadmap Context
 
-- v0.2.0: Current release (beginner UX, dark mode, enhanced protocols)
+- v0.1.0: Current release (version in `package.json`, `tauri.conf.json`, `Cargo.toml`)
+- v0.2.0: In progress — guided tour shipped; smart filters, one-click analysis and filter autocomplete are still unimplemented
 - v0.3.0: TLS decryption, bookmarks (future)
 - TLS decryption requires SSLKEYLOGFILE or private key - complex, not yet implemented

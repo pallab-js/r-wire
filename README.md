@@ -15,15 +15,15 @@
 
 ## Why AuraCap?
 
-| Aspect | Wireshark | AuraCap |
-|--------|----------|---------|
-| **Platform** | Cross-platform | macOS-native (Apple Silicon optimized) |
-| **Learning Curve** | Steep | Beginner-friendly |
-| **Interface** | Complex menus | Clean, focused UI |
-| **Startup** | Slow, heavy | Instant launch |
-| **Design** | Dated | Modern dark theme |
-| **Dependencies** | Requires WinPcap/Npcap | Built-in (Tauri) |
-| **Price** | Free (but complex) | Free & open-source |
+| Aspect             | Wireshark              | AuraCap                                |
+| ------------------ | ---------------------- | -------------------------------------- |
+| **Platform**       | Cross-platform         | macOS-native (Apple Silicon optimized) |
+| **Learning Curve** | Steep                  | Beginner-friendly                      |
+| **Interface**      | Complex menus          | Clean, focused UI                      |
+| **Startup**        | Slow, heavy            | Instant launch                         |
+| **Design**         | Dated                  | Modern dark theme                      |
+| **Dependencies**   | Requires WinPcap/Npcap | Built-in (Tauri)                       |
+| **Price**          | Free (but complex)     | Free & open-source                     |
 
 AuraCap provides professional-grade packet analysis in a fraction of the complexity—without sacrificing the power experts need.
 
@@ -32,16 +32,19 @@ AuraCap provides professional-grade packet analysis in a fraction of the complex
 ## Who Is AuraCap For?
 
 ### Network Engineers
+
 - Debug network issues faster with instant packet summaries
 - Filter traffic with simple display filters
 - Export captures for further analysis in Wireshark
 
-### Cybersecurity Professionals  
+### Cybersecurity Professionals
+
 - Analyze suspicious traffic on-the-fly
 - Inspect payloads (JSON, JWT, hex)
 - Follow TCP/UDP streams in human-readable form
 
 ### Students & Beginners
+
 - Learn networking without overwhelming details
 - Natural language packet explanations
 - No prior experience required
@@ -52,11 +55,9 @@ AuraCap provides professional-grade packet analysis in a fraction of the complex
 
 ### Download
 
-Download the latest release from [GitHub Releases](https://github.com/pallab-js/r-wire/releases):
+No pre-built release has been published yet — build from source below.
 
-- **macOS**: `.dmg` installer (Apple Silicon recommended)
-- **Windows**: `.msi` / `.exe` installer
-- **Linux**: `.AppImage`
+> CI builds a macOS `.dmg` and attaches it to a **draft** GitHub Release when a `v*` tag is pushed. Windows and Linux installers are not built yet.
 
 ### Build from Source
 
@@ -82,18 +83,21 @@ npm run tauri build
 ## Features
 
 ### Core Capabilities
+
 - **Real-time capture** from any network interface
 - **Instant filtering** with display filters (e.g., `protocol:tcp`, `port:443`)
 - **BPF support** for advanced capture filters
 - **Export to PCAP** for external analysis
 
 ### Packet Analysis
+
 - **Packet list** with virtual scrolling (handles millions of packets)
 - **Packet details** with protocol layer breakdown
 - **Hex view** for raw byte inspection
 - **Follow Stream** for TCP/UDP conversation reassembly
 
 ### Professional Tools
+
 - **Protocol statistics** (traffic rates, protocol distribution)
 - **Interface selection** for multi-NIC environments
 - **Artifact extraction** from packets
@@ -121,6 +125,7 @@ npm run tauri build
 ```
 
 **Tech Stack:**
+
 - **Frontend**: SvelteKit, TypeScript, Tailwind CSS
 - **Backend**: Rust, pcapcapture, SQLite
 - **Desktop**: Tauri 2.x (native performance)

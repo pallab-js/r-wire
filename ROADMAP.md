@@ -32,19 +32,21 @@ This document outlines AuraCap's strategic roadmap to become the preferred netwo
 
 ## Roadmap: v0.2.0 - "First Impression" (Q2 2026)
 
+> **Status: in progress.** The shipped version is **v0.1.0**; nothing below has been released yet. Only items marked ✅ exist in the code.
+
 ### Goals: Reduce barriers to entry
 
-| Feature            | Description                   | Impact                   | Status  |
-| ------------------ | ----------------------------- | ------------------------ | ------- |
-| Guided Tour        | First-launch walkthrough      | Beginner onboarding      | ✅ Done |
-| Smart Filters      | Natural language filter input | No BPF knowledge needed  | ✅ Done |
-| One-Click Analysis | Auto-analyze and summarize    | Zero-friction experience | ✅ Done |
+| Feature            | Description                   | Impact                   | Status         |
+| ------------------ | ----------------------------- | ------------------------ | -------------- |
+| Guided Tour        | First-launch walkthrough      | Beginner onboarding      | ✅ Done        |
+| Smart Filters      | Natural language filter input | No BPF knowledge needed  | ⏳ Not started |
+| One-Click Analysis | Auto-analyze and summarize    | Zero-friction experience | ⏳ Not started |
 
 ### Technical
 
 - [x] Interactive onboarding wizard (`OnboardingTour.svelte`)
-- [x] Filter autocomplete with suggestions
-- [x] Quick actions toolbar (Analyze button)
+- [ ] Filter autocomplete with suggestions
+- [ ] Quick actions toolbar (Analyze button)
 
 ---
 
@@ -92,16 +94,17 @@ This document outlines AuraCap's strategic roadmap to become the preferred netwo
 
 ### Goals: Scale for production environments
 
-| Feature           | Description               | Impact                |
-| ----------------- | ------------------------- | --------------------- |
-| ~~Dark Mode~~     | ✅ Done (v0.2.0)          | Eye comfort           |
-| Multi-Window      | Detached packet views     | Multi-monitor         |
-| Capture Scheduler | Automated captures        | Continuous monitoring |
-| LDAP/SSO Auth     | Enterprise authentication | Team management       |
+| Feature           | Description                | Impact                |
+| ----------------- | -------------------------- | --------------------- |
+| ~~Dark Mode~~     | ✅ Done (app is dark-only) | Eye comfort           |
+| Multi-Window      | Detached packet views      | Multi-monitor         |
+| Capture Scheduler | Automated captures         | Continuous monitoring |
+| LDAP/SSO Auth     | Enterprise authentication  | Team management       |
 
 ### Technical
 
-- [x] Theme switcher (light/dark)
+- [x] Dark theme (`data-theme="dark"`, applied at startup)
+- [ ] Theme switcher (light/dark)
 - [ ] Multi-window support
 - [ ] Scheduled capture jobs
 - [ ] Enterprise auth integration
@@ -142,14 +145,14 @@ AuraCap:     "Your Mac received an encrypted acknowledgment from github.com"
 
 ## Milestones
 
-| Version | Target  | Theme               | Key Deliverable                                       |
-| ------- | ------- | ------------------- | ----------------------------------------------------- |
-| v0.1.0  | ✅ Done | Foundation          | Core packet capture                                   |
-| v0.2.0  | ✅ Done | First Impression    | Beginner-friendly UX + Dark Mode + Enhanced Protocols |
-| v0.3.0  | Q3 2026 | Professional Polish | TLS decryption + bookmarks                            |
-| v0.4.0  | Q4 2026 | Power User          | Automation & scripting                                |
-| v0.5.0  | 2027    | Enterprise          | Multi-window + collaboration                          |
-| v1.0.0  | 2027    | Release             | Public 1.0 launch                                     |
+| Version | Target         | Theme               | Key Deliverable                                          |
+| ------- | -------------- | ------------------- | -------------------------------------------------------- |
+| v0.1.0  | ✅ Done        | Foundation          | Core packet capture                                      |
+| v0.2.0  | ⏳ In progress | First Impression    | Guided tour shipped; smart filters + analysis still open |
+| v0.3.0  | Q3 2026        | Professional Polish | TLS decryption + bookmarks                               |
+| v0.4.0  | Q4 2026        | Power User          | Automation & scripting                                   |
+| v0.5.0  | 2027           | Enterprise          | Multi-window + collaboration                             |
+| v1.0.0  | 2027           | Release             | Public 1.0 launch                                        |
 
 ---
 
