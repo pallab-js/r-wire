@@ -97,10 +97,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install macOS dependencies
-        run: |
-          brew installwebkit2gtk
-
       - name: Build Tauri app
         run: npm run tauri build -- --bundles dmg
         env:
@@ -126,9 +122,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust Audit
-        run: |
-          cargo install cargo-audit
-          cargo audit
+        run: cargo install cargo-audit && cd src-tauri && cargo audit
 
   # ============================================================================
   # RELEASE (on tag)
