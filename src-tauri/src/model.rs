@@ -29,10 +29,17 @@ pub struct PacketSummary {
     pub dest_addr: String,
     /// Protocol name (TCP, UDP, ICMP, ARP, etc.)
     pub protocol: String,
-    /// Packet length in bytes
+    /// Length of the frame on the wire. May exceed the bytes actually stored:
+    /// capture uses a 1600-byte snaplen, so long frames are truncated.
     pub length: u32,
     /// Human-readable packet description/information
     pub info: String,
+    /// Source transport port (TCP/UDP). `None` for protocols without ports.
+    #[serde(default)]
+    pub src_port: Option<u16>,
+    /// Destination transport port (TCP/UDP). `None` for protocols without ports.
+    #[serde(default)]
+    pub dst_port: Option<u16>,
 }
 
 /// Detailed packet analysis with full protocol dissection.
@@ -66,10 +73,13 @@ pub struct ForensicNarrative {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ForensicIntelligence {
+    /// Shannon entropy of the transport payload (or the frame when the packet
+    /// carries no payload).
     pub entropy: f64,
-    pub ja3_hash: Option<String>,
     pub manufacturer: Option<String>,
-    pub risk_score: u8, // 0-100
+    /// 0-100, and 0 unless the dissector found something (see
+    /// `dissector::compute_risk_score`).
+    pub risk_score: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,6 +111,12 @@ pub struct StreamMessage {
     pub data: Vec<u8>,
     /// Timestamp of the first packet in this message
     pub timestamp: i64,
+    /// Stream bytes that were never captured immediately before this message.
+    /// 0 when the stream is contiguous up to this point; a hole in the capture
+    /// (a segment lost before it reached the interface, or a gap between the
+    /// parts we did capture) makes this non-zero rather than the two halves
+    /// being silently glued together.
+    pub missing_before: u64,
 }
 
 /// A single field within a protocol layer.
