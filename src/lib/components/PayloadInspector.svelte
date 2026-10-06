@@ -30,28 +30,48 @@
     }
 
     // Try JSON
-    try {
-      const parsed = JSON.parse(text);
-      formattedContent = JSON.stringify(parsed, null, 2);
+    const prettyJson = tryFormatJson(text);
+    if (prettyJson !== null) {
+      formattedContent = prettyJson;
       contentType = 'json';
       return;
-    } catch {}
+    }
 
     // Try JWT
     if (text.startsWith('ey') && text.split('.').length === 3) {
-      try {
-        const parts = text.split('.');
-        const header = JSON.parse(atob(parts[0]));
-        const payload = JSON.parse(atob(parts[1]));
+      const parts = text.split('.');
+      const header = decodeJwtSegment(parts[0]);
+      const payload = decodeJwtSegment(parts[1]);
+      if (header !== null && payload !== null) {
         formattedContent = JSON.stringify({ header, payload }, null, 2);
         contentType = 'jwt';
         return;
-      } catch {}
+      }
     }
 
     // Default to plain text
     formattedContent = text;
     contentType = 'text';
+  }
+
+  /** Pretty-printed JSON, or `null` when `text` is not valid JSON. */
+  function tryFormatJson(text: string): string | null {
+    try {
+      return JSON.stringify(JSON.parse(text), null, 2);
+    } catch {
+      // Not JSON — the caller falls through to the next decoder.
+      return null;
+    }
+  }
+
+  /** A decoded base64 JWT segment, or `null` when it is not base64 JSON. */
+  function decodeJwtSegment(segment: string): unknown {
+    try {
+      return JSON.parse(atob(segment));
+    } catch {
+      // Malformed segment — the caller falls through to plain text.
+      return null;
+    }
   }
 
   function copyToClipboard() {

@@ -54,6 +54,9 @@
   });
 
   $: progress = ((currentStep + 1) / steps.length) * 100;
+  // Read through `.at()` so the template never indexes the array with a
+  // variable key, and so an out-of-range step still renders the first card.
+  $: step = steps.at(currentStep) ?? steps[0];
 </script>
 
 <div
@@ -83,10 +86,10 @@
       <!-- Step content -->
       <div class="text-center mb-8">
         <h2 class="text-xl font-medium mb-2" style="color: var(--text-primary);">
-          {steps[currentStep].title}
+          {step.title}
         </h2>
         <p class="text-sm leading-relaxed" style="color: var(--text-secondary);">
-          {steps[currentStep].description}
+          {step.description}
         </p>
       </div>
 

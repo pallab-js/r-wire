@@ -4,25 +4,24 @@
   export let layers: ProtocolLayer[];
 
   let filterText = '';
-  let expandedState: Record<number, boolean> = {};
+  // Layer expansion is tracked per layer index in a Map rather than a plain
+  // object, so no dynamic property access happens on user-shaped keys.
+  let expandedState = new Map<number, boolean>();
 
   $: {
     if (layers) {
-      const newState: Record<number, boolean> = {};
+      const newState = new Map<number, boolean>();
       layers.forEach((_, i) => {
-        if (expandedState[i] === undefined) {
-          newState[i] = true;
-        } else {
-          newState[i] = expandedState[i];
-        }
+        // A layer we have not seen starts expanded; remembered state wins.
+        newState.set(i, expandedState.get(i) ?? true);
       });
       expandedState = newState;
     }
   }
 
   function toggleLayer(index: number) {
-    expandedState[index] = !expandedState[index];
-    expandedState = { ...expandedState };
+    expandedState.set(index, !expandedState.get(index));
+    expandedState = new Map(expandedState);
   }
 
   function matchesFilter(field: PacketField) {
@@ -143,7 +142,7 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   class="transition-transform duration-200 shrink-0"
-                  style="color: var(--text-muted); transform: {expandedState[i]
+                  style="color: var(--text-muted); transform: {expandedState.get(i)
                     ? 'rotate(90deg)'
                     : 'rotate(0deg)'}"
                 >
@@ -152,7 +151,7 @@
                 <strong class="font-medium" style="color: var(--brand-green);">{layer.name}</strong>
               </button>
 
-              {#if expandedState[i]}
+              {#if expandedState.get(i)}
                 <div
                   class="ml-[22px] border-l pl-2 my-0.5 flex flex-col gap-0.5"
                   style="border-color: var(--border-subtle);"
