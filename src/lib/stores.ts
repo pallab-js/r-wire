@@ -13,8 +13,13 @@ export interface PacketSummary {
   source_addr: string;
   dest_addr: string;
   protocol: string;
+  /** Frame length on the wire; may exceed the bytes captured (snaplen 1600). */
   length: number;
   info: string;
+  /** Source transport port (TCP/UDP); absent/`null` for other protocols. */
+  src_port?: number | null;
+  /** Destination transport port (TCP/UDP); absent/`null` for other protocols. */
+  dst_port?: number | null;
 }
 
 export interface PacketField {
@@ -35,9 +40,10 @@ export interface ForensicNarrative {
 }
 
 export interface ForensicIntelligence {
+  /** Shannon entropy of the transport payload (or the frame when empty). */
   entropy: number;
-  ja3_hash: string | null;
   manufacturer: string | null;
+  /** 0-100; 0 unless the dissector found something notable. */
   risk_score: number;
 }
 
@@ -119,6 +125,8 @@ export interface StreamMessage {
   is_client: boolean;
   data: number[]; // Vec<u8> as number[]
   timestamp: number;
+  /** Stream bytes never captured immediately before this message (0 = contiguous). */
+  missing_before: number;
 }
 
 export const selectedPacket = writable<PacketDetail | null>(null);

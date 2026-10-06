@@ -41,11 +41,76 @@ const sourceMap = new Map<string, number>();
 const destMap = new Map<string, number>();
 const timeSeriesMap = new Map<number, TimeSeriesData>();
 
+/** Maximum number of points on the traffic chart. */
+const MAX_TIME_BUCKETS = 60;
+/** Upper bound on bucket width, so one bogus timestamp cannot flatten the chart. */
+const MAX_BUCKET_SECONDS = 86_400;
+
+/**
+ * Width of one time bucket in seconds.
+ *
+ * Buckets start at one second and double once the capture spans more than
+ * `MAX_TIME_BUCKETS` of them. Widening re-buckets the aggregates already
+ * collected instead of deleting the oldest ones, which keeps
+ * `sum(timeSeries) === totalPackets` for captures of any length.
+ */
+let bucketSeconds = 1;
+
 export function resetStatistics() {
   protocolMap.clear();
   sourceMap.clear();
   destMap.clear();
   timeSeriesMap.clear();
+  bucketSeconds = 1;
+}
+
+/** Collapses the existing buckets into buckets twice as wide. */
+function widenTimeBuckets(): boolean {
+  if (bucketSeconds >= MAX_BUCKET_SECONDS) {
+    return false;
+  }
+
+  const next = bucketSeconds * 2;
+  const merged = new Map<number, TimeSeriesData>();
+
+  for (const entry of timeSeriesMap.values()) {
+    const key = Math.floor(entry.timestamp / next) * next;
+    const existing = merged.get(key);
+    if (existing) {
+      existing.packets += entry.packets;
+      existing.bytes += entry.bytes;
+    } else {
+      merged.set(key, { timestamp: key, packets: entry.packets, bytes: entry.bytes });
+    }
+  }
+
+  timeSeriesMap.clear();
+  for (const [key, value] of merged) {
+    timeSeriesMap.set(key, value);
+  }
+
+  bucketSeconds = next;
+  return true;
+}
+
+/**
+ * Grows the bucket width until every bucket fits on the chart.
+ *
+ * This used to delete the oldest buckets instead, so any capture longer than
+ * 60 seconds silently lost its earliest traffic: the chart summed to half of
+ * `totalPackets`, which counted everything.
+ */
+function fitTimeBucketsToChart() {
+  while (timeSeriesMap.size > 1) {
+    const keys = Array.from(timeSeriesMap.keys()).sort((a, b) => a - b);
+    const span = keys[keys.length - 1] - keys[0];
+    if (span <= (MAX_TIME_BUCKETS - 1) * bucketSeconds) {
+      break;
+    }
+    if (!widenTimeBuckets()) {
+      break;
+    }
+  }
 }
 
 export function updateStatistics(current: Statistics, newPackets: PacketSummary[]): Statistics {
@@ -74,12 +139,14 @@ export function updateStatistics(current: Statistics, newPackets: PacketSummary[
 
     totalBytes += packet.length;
 
-    // Time series (bucket by second)
+    // Time series: bucket at the current width so the whole capture stays on
+    // the chart (see `bucketSeconds`).
     const timeSec = Math.floor(packet.timestamp / 1_000_000_000);
-    const tsEntry = timeSeriesMap.get(timeSec) || { timestamp: timeSec, packets: 0, bytes: 0 };
+    const bucket = Math.floor(timeSec / bucketSeconds) * bucketSeconds;
+    const tsEntry = timeSeriesMap.get(bucket) || { timestamp: bucket, packets: 0, bytes: 0 };
     tsEntry.packets += 1;
     tsEntry.bytes += packet.length;
-    timeSeriesMap.set(timeSec, tsEntry);
+    timeSeriesMap.set(bucket, tsEntry);
   }
 
   // Convert maps to arrays and calculate percentages
@@ -102,14 +169,8 @@ export function updateStatistics(current: Statistics, newPackets: PacketSummary[
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  // Keep last 60 seconds for time series to avoid infinite memory growth
-  const sortedTimes = Array.from(timeSeriesMap.keys()).sort((a, b) => a - b);
-  if (sortedTimes.length > 60) {
-    const keysToRemove = sortedTimes.slice(0, sortedTimes.length - 60);
-    for (const key of keysToRemove) {
-      timeSeriesMap.delete(key);
-    }
-  }
+  // Widen buckets (rather than dropping old ones) until the chart fits.
+  fitTimeBucketsToChart();
 
   const timeSeries = Array.from(timeSeriesMap.values()).sort((a, b) => a.timestamp - b.timestamp);
 

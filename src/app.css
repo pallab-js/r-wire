@@ -59,7 +59,6 @@
 }
 
 * {
-  box-shadow: none !important;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -405,12 +404,9 @@ div {
   background: var(--border-prominent);
 }
 
-* :focus {
-  outline: none;
-}
-
-* :focus-visible {
-  box-shadow: var(--shadow-focus);
+:focus-visible {
+  outline: 2px solid var(--brand-green);
+  outline-offset: 2px;
 }
 
 ::selection {

@@ -27,7 +27,14 @@
         captureError.set('Failed to list network interfaces');
       });
 
-    let unlistenFn: (() => void) | null = null;
+    const unlistenFns: (() => void)[] = [];
+    let disposed = false;
+
+    const register = (fn: () => void) => {
+      if (disposed) fn();
+      else unlistenFns.push(fn);
+    };
+
     // Listen for batches to trigger intensity pulse
     listen('new_packet_batch', () => {
       intensityActive = true;
@@ -35,12 +42,39 @@
       intensityTimer = setTimeout(() => {
         intensityActive = false;
       }, 150);
-    }).then((fn) => {
-      unlistenFn = fn;
-    });
+    })
+      .then(register)
+      .catch((err) => console.error('Failed to listen for new_packet_batch:', err));
+
+    // The backend can stop itself (memory cap / packet cap) without going
+    // through stop_capture(). Without these listeners the UI would stay
+    // "capturing" forever: Start disabled, status dot green, no explanation.
+    listen('capture_auto_stop', (event) => {
+      isCapturing.set(false);
+      captureError.set(`Capture stopped: ${String(event.payload)}`);
+    })
+      .then(register)
+      .catch((err) => console.error('Failed to listen for capture_auto_stop:', err));
+
+    listen('memory_warning', () => {
+      captureError.set('High memory usage detected — consider stopping the capture.');
+    })
+      .then(register)
+      .catch((err) => console.error('Failed to listen for memory_warning:', err));
+
+    // `start_capture` returns as soon as the task is spawned, so a capture that
+    // then fails to open the device or compile the filter reports back through
+    // this event instead of leaving the UI "capturing" with nothing arriving.
+    listen('capture_error', (event) => {
+      isCapturing.set(false);
+      captureError.set(`Capture failed: ${String(event.payload)}`);
+    })
+      .then(register)
+      .catch((err) => console.error('Failed to listen for capture_error:', err));
 
     return () => {
-      if (unlistenFn) unlistenFn();
+      disposed = true;
+      for (const unlisten of unlistenFns) unlisten();
       if (intensityTimer) clearTimeout(intensityTimer);
     };
   });
@@ -85,9 +119,18 @@
     await startCapture();
   }
 
-  function clearPackets() {
-    setPacketList([]);
-    selectedPacket.set(null);
+  async function clearPackets() {
+    // Clear the backend first: emptying only the store made packets reappear
+    // on the next paginated fetch (and after a capture restart).
+    try {
+      const { invoke } = await import('@tauri-apps/api/tauri');
+      await invoke<number>('clear_packets');
+      setPacketList([]);
+      selectedPacket.set(null);
+      captureError.set(null);
+    } catch (error) {
+      captureError.set(`Failed to clear packets: ${error}`);
+    }
   }
 
   async function exportPcap() {

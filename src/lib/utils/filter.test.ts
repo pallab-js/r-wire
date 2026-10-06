@@ -11,6 +11,18 @@ describe('filter.ts', () => {
     protocol: 'TCP',
     length: 64,
     info: '443 > 54321 [SYN] Seq=0 Win=64240 Len=0',
+    src_port: 54321,
+    dst_port: 443,
+  };
+
+  const icmpPacket: PacketSummary = {
+    id: 2,
+    timestamp: 1711706400000001,
+    source_addr: '192.168.1.1',
+    dest_addr: '8.8.8.8',
+    protocol: 'ICMP',
+    length: 98,
+    info: '192.168.1.1 -> 8.8.8.8 [ICMP]',
   };
 
   it('should return true if filter is empty', () => {
@@ -31,7 +43,21 @@ describe('filter.ts', () => {
 
   it('should filter by port', () => {
     expect(matchesFilter(mockPacket, 'port:443')).toBe(true);
+    expect(matchesFilter(mockPacket, 'port:54321')).toBe(true);
     expect(matchesFilter(mockPacket, 'port:80')).toBe(false);
+  });
+
+  it('should not match port substrings from the info text', () => {
+    // Regression: `port:` used to substring-match `info`, so "443" matched
+    // "44" and "54321" matched "5432".
+    expect(matchesFilter(mockPacket, 'port:44')).toBe(false);
+    expect(matchesFilter(mockPacket, 'port:5432')).toBe(false);
+    expect(matchesFilter(mockPacket, 'port:192.168.1.1')).toBe(false);
+  });
+
+  it('should not match ports on packets without a transport layer', () => {
+    expect(matchesFilter(icmpPacket, 'port:80')).toBe(false);
+    expect(matchesFilter(icmpPacket, 'protocol:icmp')).toBe(true);
   });
 
   it('should filter by source address', () => {

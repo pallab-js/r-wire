@@ -28,6 +28,11 @@
 
   // Local cache for current window of packets
   let visiblePackets: PacketSummary[] = [];
+  // Scroll offset that `visiblePackets` was fetched for. The spacers are
+  // derived from this rather than from the requested window, so rows are never
+  // drawn at a position that disagrees with their packet id while a fetch is
+  // still in flight (or after one failed).
+  let loadedOffset = 0;
 
   // Timestamp formatting cache
   const timestampCache = new Map<number, string>();
@@ -37,6 +42,7 @@
   let clientHeight = 600;
   const ROW_HEIGHT = 28; // Fixed height per row
   const OVERSCAN = 30; // Render 30 rows above/below
+  const FETCH_DEBOUNCE_MS = 50;
 
   $: totalPacketsCount = $totalFilteredCount;
   $: startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
@@ -45,35 +51,83 @@
     Math.floor((scrollTop + clientHeight) / ROW_HEIGHT) + OVERSCAN,
   );
 
-  $: paddingTop = startIndex * ROW_HEIGHT;
-  $: paddingBottom = Math.max(0, (totalPacketsCount - endIndex) * ROW_HEIGHT);
+  $: renderedCount = visiblePackets.length;
+  $: paddingTop = loadedOffset * ROW_HEIGHT;
+  $: paddingBottom = Math.max(0, (totalPacketsCount - loadedOffset - renderedCount) * ROW_HEIGHT);
 
   // Fetch packets when the window changes
   let currentFetchId = 0;
-  $: {
-    const fetchId = ++currentFetchId;
-    const offset = startIndex;
-    const limit = Math.max(0, endIndex - startIndex);
-    const filter = $debouncedFilter;
+  let fetchTimer: ReturnType<typeof setTimeout> | undefined;
 
-    if (limit > 0) {
-      invoke<PacketSummary[]>('get_packets', { offset, limit, filter: filter || null })
-        .then((packets) => {
-          if (fetchId === currentFetchId) {
-            visiblePackets = packets;
-          }
-        })
-        .catch((err) => console.error('Failed to fetch packets:', err));
-    } else {
-      visiblePackets = [];
+  $: scheduleFetch(startIndex, endIndex, $debouncedFilter);
+
+  function scheduleFetch(offset: number, end: number, filter: string) {
+    const limit = Math.max(0, end - offset);
+    clearTimeout(fetchTimer);
+
+    if (limit <= 0) {
+      fetchTimer = setTimeout(() => loadWindow(offset, limit, filter), 0);
+      return;
     }
+
+    // The cached rows already contain everything on screen — scrolling inside
+    // the overscanned window costs no query at all.
+    if (
+      renderedCount > 0 &&
+      offset >= loadedOffset &&
+      offset + limit <= loadedOffset + renderedCount
+    ) {
+      return;
+    }
+
+    // Query straight away once the cached rows no longer intersect the
+    // viewport (otherwise the list would sit blank); otherwise wait for
+    // scrolling to settle. One IPC call per scroll event adds up fast — a
+    // single wheel flick fires dozens of them.
+    const isStale =
+      renderedCount === 0 ||
+      offset + limit <= loadedOffset ||
+      offset >= loadedOffset + renderedCount;
+
+    fetchTimer = setTimeout(
+      () => loadWindow(offset, limit, filter),
+      isStale ? 0 : FETCH_DEBOUNCE_MS,
+    );
   }
 
-  // Update total count when filter changes
+  function loadWindow(offset: number, limit: number, filter: string) {
+    if (limit <= 0) {
+      visiblePackets = [];
+      loadedOffset = 0;
+      return;
+    }
+
+    const fetchId = ++currentFetchId;
+    invoke<PacketSummary[]>('get_packets', { offset, limit, filter: filter || null })
+      .then((packets) => {
+        // A newer window superseded this request while it was in flight.
+        if (fetchId !== currentFetchId) return;
+        visiblePackets = packets;
+        loadedOffset = offset;
+      })
+      .catch((err) => {
+        // Keep the previous rows: the spacers still match `loadedOffset`, so
+        // what stays on screen remains correctly positioned.
+        console.error('Failed to fetch packets:', err);
+      });
+  }
+
+  // Update total count when filter changes. Responses are not ordered, so a
+  // slow answer for a previous filter must not overwrite the current one:
+  // `totalPacketsCount` drives the virtual scroller's height, and a stale value
+  // leaves rows rendered at the wrong scroll offset until the next change.
+  let currentCountId = 0;
   $: {
+    const countId = ++currentCountId;
     const filter = $debouncedFilter;
     invoke<number>('get_packet_count', { filter: filter || null })
       .then((count) => {
+        if (countId !== currentCountId) return; // superseded by a newer filter
         totalFilteredCount.set(count);
       })
       .catch((err) => console.error('Failed to get count:', err));
@@ -96,14 +150,23 @@
     };
   });
 
+  // Detail requests are not ordered: clicking packet 1 then packet 2 must never
+  // let packet 1's slower response land on top of packet 2's, or the detail pane
+  // describes a packet that is no longer the selected row.
+  let currentDetailId = 0;
   async function selectPacket(packet: PacketSummary) {
     selectedId = packet.id;
+    const detailId = ++currentDetailId;
     try {
       const detail = await invoke<PacketDetail>('get_packet_detail', { id: packet.id });
+      if (detailId !== currentDetailId) return; // a newer packet was clicked
       if (detail) {
         selectedPacket.set(detail);
       }
     } catch (error) {
+      // Drop the detail rather than keep showing the previous packet's, but only
+      // if this is still the request on screen.
+      if (detailId === currentDetailId) selectedPacket.set(null);
       console.error('Failed to get packet detail:', error);
     }
   }
@@ -120,32 +183,54 @@
     contextMenuVisible = false;
   }
 
+  // Sequence number for Follow Stream requests: see `followStream`.
+  let currentStreamId = 0;
+
+  // A transient message clears itself, but only if it is still the message on
+  // screen: blindly setting `null` three seconds later can wipe a newer, more
+  // serious message (a real capture failure, say) that arrived in between.
+  function clearLater(message: string, ms = 3000) {
+    setTimeout(() => {
+      captureError.update((current) => (current === message ? null : current));
+    }, ms);
+  }
+
   async function followStream() {
     if (contextMenuPacketId === null) return;
 
     // Only allow for TCP/UDP
     if (!isStream) {
-      captureError.set('Follow Stream is only supported for TCP and UDP traffic.');
-      setTimeout(() => captureError.set(null), 3000);
+      const msg = 'Follow Stream is only supported for TCP and UDP traffic.';
+      captureError.set(msg);
+      clearLater(msg);
       closeContextMenu();
       return;
     }
 
+    // Snapshot the id and start a new sequence: a second Follow Stream while
+    // this one is in flight supersedes it, so only the newest may publish.
+    const packetId = contextMenuPacketId;
+    const streamId = ++currentStreamId;
     try {
       captureError.set('Reassembling stream...');
       const messages = await invoke<StreamMessage[]>('get_stream_content', {
-        packetId: contextMenuPacketId,
+        packetId,
       });
+      if (streamId !== currentStreamId) return; // superseded while in flight
       if (messages && messages.length > 0) {
         selectedStream.set(messages);
         captureError.set(null);
       } else {
-        captureError.set('No conversational data found for this packet.');
-        setTimeout(() => captureError.set(null), 3000);
+        const msg = 'No conversational data found for this packet.';
+        captureError.set(msg);
+        clearLater(msg);
       }
     } catch (err) {
+      if (streamId !== currentStreamId) return;
       console.error('Failed to follow stream:', err);
-      captureError.set(`Error reassembling stream: ${err}`);
+      const msg = `Error reassembling stream: ${err}`;
+      captureError.set(msg);
+      clearLater(msg); // this one used to stay on screen forever
     }
     closeContextMenu();
   }
@@ -307,7 +392,11 @@
       class="absolute top-[50px] left-0 right-0 p-8 text-center"
       style="color: var(--text-muted);"
     >
-      {#if $totalFilteredCount > 0}
+      {#if $debouncedFilter.trim()}
+        <!-- The outer check is `totalPacketsCount === 0`, and totalPacketsCount
+             is just $totalFilteredCount — so a `$totalFilteredCount > 0` branch
+             here could never render. Filter set + zero matches is the real
+             "nothing to show" case. -->
         No packets match the current filter.
       {:else}
         No packets captured yet. Click "Start" to begin capturing.

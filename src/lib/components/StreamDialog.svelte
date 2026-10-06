@@ -83,6 +83,15 @@
       >
         {#each $selectedStream as msg}
           <div class="flex flex-col {msg.is_client ? 'items-start' : 'items-end'}">
+            {#if msg.missing_before > 0}
+              <div
+                class="text-xs px-2 py-1 mb-1 rounded border border-dashed"
+                style="color: var(--text-muted); border-color: var(--border-prominent);"
+              >
+                {msg.missing_before.toLocaleString()} bytes of this stream were never captured before
+                this part
+              </div>
+            {/if}
             <div
               class="max-w-[90%] p-3 rounded-lg border"
               style={msg.is_client

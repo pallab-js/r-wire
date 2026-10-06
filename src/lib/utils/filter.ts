@@ -21,11 +21,14 @@ export function matchesFilter(packet: PacketSummary, filter: string): boolean {
     return packet.source_addr.includes(ip) || packet.dest_addr.includes(ip);
   }
 
-  // Port filter
+  // Port filter — exact match on either side. Matching against `info` text
+  // made `port:80` also hit 8080, 1080, and `192.168.1.80`.
   if (lowerFilter.startsWith('port:')) {
     const port = lowerFilter.replace('port:', '').trim();
     if (!port) return false; // Empty port filter
-    return packet.info.includes(port);
+    const portNum = Number(port);
+    if (!Number.isInteger(portNum) || portNum < 0 || portNum > 65535) return false;
+    return packet.src_port === portNum || packet.dst_port === portNum;
   }
 
   // Source filter
