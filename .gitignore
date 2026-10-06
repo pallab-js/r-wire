@@ -1,23 +1,44 @@
 # Dependencies
 node_modules/
 
-# Build outputs
-/build
-/.svelte-kit
-/package
+# Build output
+build/
 dist/
+package/
+.svelte-kit/
+*.tsbuildinfo
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
 
-# Environment variables
+# Rust / Tauri
+# Cargo.lock stays committed — this repo ships a binary.
+target/
+src-tauri/gen/
+*.rs.bk
+
+# Local capture data
+capture.db*
+
+# Environment
 .env
 .env.*
 !.env.example
+*.local
 
-# IDE
+# Editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.eslintcache
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # OS
 .DS_Store
@@ -27,26 +48,3 @@ dist/
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Vite
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*
-
-# Rust
-target/
-# Note: Cargo.lock should be committed for binary applications
-
-# AuraCap Local Database
-capture.db*
-src-tauri/capture.db*
-
-# Tauri
-src-tauri/target/
-src-tauri/gen/
