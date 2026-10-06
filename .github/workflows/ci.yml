@@ -47,9 +47,20 @@ jobs:
   # ============================================================================
   rust-test:
     name: Rust Test
-    runs-on: ubuntu-latest
+    # Pinned: Tauri v1 links against webkit2gtk-4.0, which Ubuntu 24.04
+    # (ubuntu-latest) no longer ships — see packages.ubuntu.com/noble.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+
+      # Clippy and the test build compile the Tauri crate, so the GTK/WebKit
+      # development headers its sys crates probe for with pkg-config exist.
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev libssl-dev \
+            build-essential curl wget file pkg-config
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -122,7 +133,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust Audit
-        run: cargo install cargo-audit && cd src-tauri && cargo audit
+        run: cargo install cargo-audit --locked && cd src-tauri && cargo audit
 
   # ============================================================================
   # RELEASE (on tag)
