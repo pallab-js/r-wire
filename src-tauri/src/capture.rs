@@ -14,7 +14,14 @@ const MEMORY_WARNING_THRESHOLD: u64 = 512 * 1024 * 1024;
 const MEMORY_CRITICAL_THRESHOLD: u64 = 768 * 1024 * 1024;
 
 /// libpcap timestamps are (seconds, **microseconds**); we store nanoseconds.
-pub fn ns_from_parts(tv_sec: i64, tv_usec: i64) -> i64 {
+///
+/// The fields are generic over `Into<i64>` because their width is
+/// platform-specific: `tv_usec` is 32-bit on macOS but 64-bit on Linux, so a
+/// call site that casts to `i64` is needed on one OS and a needless cast on
+/// the other. Converting here keeps both call sites cast-free.
+pub fn ns_from_parts<S: Into<i64>, U: Into<i64>>(tv_sec: S, tv_usec: U) -> i64 {
+    let tv_sec: i64 = tv_sec.into();
+    let tv_usec: i64 = tv_usec.into();
     tv_sec * 1_000_000_000 + tv_usec * 1_000
 }
 
@@ -177,7 +184,7 @@ pub async fn run_capture(
                     id_counter += 1;
                     let data = packet.data.to_vec();
                     let timestamp_ns =
-                        ns_from_parts(packet.header.ts.tv_sec, packet.header.ts.tv_usec as i64);
+                        ns_from_parts(packet.header.ts.tv_sec, packet.header.ts.tv_usec);
                     // `header.len` is the frame's length on the wire; `data` is
                     // cut short at the 1600-byte snaplen.
                     if packet_tx

@@ -743,11 +743,10 @@ fn calculate_entropy(data: &[u8]) -> f64 {
 /// RFC 1071 one's-complement checksum over `header`.
 fn internet_checksum(header: &[u8]) -> u16 {
     let mut sum: u32 = 0;
-    let mut chunks = header.chunks_exact(2);
-    for chunk in &mut chunks {
-        sum += u16::from_be_bytes([chunk[0], chunk[1]]) as u32;
+    let (chunks, remainder) = header.as_chunks::<2>();
+    for chunk in chunks {
+        sum += u16::from_be_bytes(*chunk) as u32;
     }
-    let remainder = chunks.remainder();
     if !remainder.is_empty() {
         sum += (remainder[0] as u32) << 8;
     }

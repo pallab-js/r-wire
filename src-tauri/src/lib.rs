@@ -1147,10 +1147,8 @@ fn import_pcap(file_path: String, state: tauri::State<'_, AppState>) -> Result<u
             Ok(packet) => {
                 packet_id += 1;
                 let data = packet.data.to_vec();
-                let timestamp_ns = capture::ns_from_parts(
-                    packet.header.ts.tv_sec,
-                    packet.header.ts.tv_usec as i64,
-                );
+                let timestamp_ns =
+                    capture::ns_from_parts(packet.header.ts.tv_sec, packet.header.ts.tv_usec);
 
                 if let Some(mut summary) = dissector::parse_summary(&data, packet_id, timestamp_ns)
                 {
